@@ -431,11 +431,17 @@ export class Store {
     this.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
   }
 
+  /**
+   * Saved AI settings, or the defaults (AI off). COOKBOOK_OLLAMA_URL lets the
+   * installer point the default at a different local Ollama, e.g. the finance
+   * dashboard's model server on 127.0.0.1:11435.
+   */
   getAiSettings(): AiSettings {
+    const defaults = { ...DEFAULT_AI_SETTINGS, baseUrl: process.env.COOKBOOK_OLLAMA_URL || DEFAULT_AI_SETTINGS.baseUrl };
     const raw = this.getSetting('ai');
-    if (!raw) return { ...DEFAULT_AI_SETTINGS };
+    if (!raw) return defaults;
     const parsed = aiSettingsSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : { ...DEFAULT_AI_SETTINGS };
+    return parsed.success ? parsed.data : defaults;
   }
 
   setAiSettings(raw: unknown): AiSettings {

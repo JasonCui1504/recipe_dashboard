@@ -32,7 +32,35 @@ npm install
 
 This is the only step that needs the internet. After it, the app works fully offline: there are no CDNs, remote fonts, remote images, analytics or online APIs.
 
-## Run
+## Run it like an app (recommended, macOS)
+
+Same setup as the finance dashboard: a background service that starts at login.
+
+```bash
+scripts/local/install.sh
+```
+
+This builds the app and installs two launchd agents:
+
+- `com.cookbook.server`: the cookbook at **http://127.0.0.1:4173**, started at login and restarted if it stops. Log: `~/Library/Logs/cookbook-server.log`.
+- `com.cookbook.backup`: a daily 21:00 copy of the database to `~/cookbook-backups/cookbook-YYYY-MM-DD.db` (newest 30 kept), plus a mirror of your photos in `~/cookbook-backups/uploads/`. Run `scripts/local/backup.sh` for a backup any time.
+
+Then open http://127.0.0.1:4173 in Safari and choose **File → Add to Dock** for a standalone window with the cookbook icon. If you added it to the Dock before the icon existed, remove it from the Dock and add it again to pick up the icon.
+
+After pulling new code, run `scripts/local/install.sh` again to rebuild and restart. `scripts/local/uninstall.sh` stops the cookbook and removes the agents; your data and backups stay.
+
+While the agents are installed, don't also run `npm start` (same port). Use `npm run dev` for development; it runs on 5173/5174.
+
+To restore a backup:
+
+```bash
+scripts/local/uninstall.sh
+cp ~/cookbook-backups/cookbook-2026-10-18.db data/cookbook.db
+rm -f data/cookbook.db-wal data/cookbook.db-shm
+scripts/local/install.sh
+```
+
+## Run by hand
 
 **Everyday use** (production build, one server):
 
@@ -89,8 +117,8 @@ Identical records are always skipped, so importing the same file twice does noth
 
 AI is **off by default**. Every feature works without it.
 
-1. Install and start Ollama yourself, and pull a model, e.g. `ollama pull llama3.1:8b`.
-2. In the cookbook, open **Settings → Local AI assistant**, tick **Enable AI assistance**, check the address (default `http://127.0.0.1:11434`) and model name, then **Save & test connection**.
+1. You need a local Ollama with a model. If the finance dashboard's model server is installed (`~/.finance-ollama`, which already has `llama3.1:8b`), `scripts/local/install.sh` points the cookbook at it (`http://127.0.0.1:11435`), so nothing extra to download. Otherwise, run Ollama yourself and pull a model, e.g. `ollama pull llama3.1:8b` (default address `http://127.0.0.1:11434`).
+2. In the cookbook, open **Settings → Local AI assistant**, tick **Enable AI assistance**, check the address and model name, then **Save & test connection**.
 
 What it does:
 

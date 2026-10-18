@@ -160,6 +160,15 @@ describe('optional AI through the API', () => {
     expect(mock.requests).toHaveLength(0);
   });
 
+  it('uses COOKBOOK_OLLAMA_URL as the default address (still disabled)', async () => {
+    process.env.COOKBOOK_OLLAMA_URL = 'http://127.0.0.1:11435';
+    try {
+      expect((await call('GET', '/api/settings/ai')).json).toMatchObject({ enabled: false, baseUrl: 'http://127.0.0.1:11435' });
+    } finally {
+      delete process.env.COOKBOOK_OLLAMA_URL;
+    }
+  });
+
   it('refuses a non-local Ollama address', async () => {
     await call('PUT', '/api/settings/ai', { enabled: true, baseUrl: 'https://cloud.example.com', model: 'x' });
     const r = await call('POST', '/api/ai/status');
