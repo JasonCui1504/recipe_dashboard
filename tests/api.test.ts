@@ -203,6 +203,18 @@ describe('optional AI through the API', () => {
     expect(after).toBe(before);
   });
 
+  it('recommends seeded recipes through the API without writing anything', async () => {
+    await call('PUT', '/api/settings/ai', { enabled: true, baseUrl: mock.url, model: 'llama3.1:8b' });
+    const before = JSON.stringify((await call('GET', '/api/backup/export')).json.data);
+    mock.reply({ picks: [{ id: 'R1', reason: 'Fits.' }], note: '' });
+    const r = await call('POST', '/api/ai/recommend', { request: 'quick dinner' });
+    expect(r.status).toBe(200);
+    const recs = r.json.recommendations as Array<{ recipeId: string }>;
+    expect(recs).toHaveLength(1);
+    expect(SEED_RECIPES.some((s) => s.id === recs[0].recipeId)).toBe(true);
+    expect(JSON.stringify((await call('GET', '/api/backup/export')).json.data)).toBe(before);
+  });
+
   it('surfaces malformed model output as a clear error', async () => {
     await call('PUT', '/api/settings/ai', { enabled: true, baseUrl: mock.url, model: 'llama3.1:8b' });
     mock.reply('not json at all');

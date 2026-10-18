@@ -122,6 +122,7 @@ AI is **off by default**. Every feature works without it.
 
 What it does:
 
+- **Ask Llama** in the home-page search: describe what you feel like ("something cozy with chicken under 30 minutes", "use up my spinach") and it picks up to 5 of *your own* recipes, each with a short reason. It sees recipe titles, times, tags and main ingredients (favorites first, up to 60 recipes) plus the names of what's in your pantry. Any recipe it makes up is dropped, and the normal instant search keeps working underneath.
 - **Substitute?** buttons on recipe ingredients show up to 3 suggestions, clearly labelled as unverified AI output. Your recipe isn't changed.
 - **Draft with AI** on a new recipe fills the form with a draft for you to review. Nothing is saved until you press **Save**, and leaving the page asks before discarding it.
 

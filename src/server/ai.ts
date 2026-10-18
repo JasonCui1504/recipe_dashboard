@@ -287,3 +287,85 @@ export async function draftRecipe(client: OllamaClient, request: string): Promis
   if (!valid.success) throw new AiError('invalid-output', 'The model’s draft was incomplete, so it was discarded.');
   return valid.data;
 }
+
+// ---------------------------------------------------------------------------
+// Recipe search: pick from the user's own recipes for a free-text request
+// ---------------------------------------------------------------------------
+
+/** How many recipes fit comfortably in an 8B model's prompt. */
+export const RECOMMEND_MAX_RECIPES = 60;
+
+const recommendOutputSchema = z.object({
+  picks: z
+    .array(z.object({ id: z.string().trim().max(10), reason: z.string().trim().max(240).default('') }))
+    .max(8)
+    .default([]),
+  note: z.string().trim().max(300).default(''),
+});
+
+const recommendFormat = {
+  type: 'object',
+  properties: {
+    picks: {
+      type: 'array',
+      items: { type: 'object', properties: { id: { type: 'string' }, reason: { type: 'string' } }, required: ['id', 'reason'] },
+    },
+    note: { type: 'string' },
+  },
+  required: ['picks', 'note'],
+};
+
+export interface Recommendation {
+  recipeId: string;
+  reason: string;
+}
+
+/**
+ * Asks the model which of the user's recipes fit a request like "something
+ * light with chicken under 30 minutes". Recipes are listed with short ids
+ * (R1, R2…) that are easier for a small model to copy than UUIDs; any id the
+ * model makes up is dropped. Nothing is written anywhere.
+ */
+export async function recommendRecipes(
+  client: OllamaClient,
+  request: string,
+  recipes: readonly Recipe[],
+  pantryNames: readonly string[],
+): Promise<{ recommendations: Recommendation[]; note: string }> {
+  const ask = request.trim().slice(0, 300);
+  if (!ask) throw new AiError('invalid-config', 'Type what you’re in the mood for first.');
+  if (recipes.length === 0) return { recommendations: [], note: 'Your cookbook has no recipes yet.' };
+
+  const listed = recipes.slice(0, RECOMMEND_MAX_RECIPES);
+  const lines = listed.map((r, i) => {
+    const total = r.prepMinutes + r.cookMinutes;
+    const tags = [...r.dietary, ...r.tags].slice(0, 6).join(', ');
+    const ingredients = r.ingredients
+      .filter((x) => !x.staple)
+      .map((x) => x.name)
+      .slice(0, 8)
+      .join(', ');
+    return `R${i + 1}: ${r.title.slice(0, 80)} | ${total} min, ${r.difficulty}${r.favorite ? ', favorite' : ''} | ${tags} | ${ingredients}`;
+  });
+  const pantry = pantryNames.slice(0, 30).join(', ');
+
+  const system =
+    'You help choose what to cook from the user’s own recipe list. Only pick recipes from the list, by their id (like "R3"). ' +
+    'Reply with JSON only: {"picks":[{"id":"R3","reason":"..."}],"note":"..."}. ' +
+    'Pick 1 to 5 recipes, best first, each with a reason under 20 words. Prefer recipes that use pantry items when relevant. ' +
+    'If nothing fits, return no picks and say so briefly in "note". No health or nutrition claims.';
+  const user = `Request: ${ask}\n${pantry ? `In the pantry: ${pantry}\n` : ''}Recipes:\n${lines.join('\n')}`;
+
+  const out = await client.chatJson(system, user, recommendOutputSchema, recommendFormat);
+  const seen = new Set<string>();
+  const recommendations: Recommendation[] = [];
+  for (const pick of out.picks) {
+    const m = /^R?(\d+)$/i.exec(pick.id);
+    const recipe = m ? listed[Number(m[1]) - 1] : undefined;
+    if (!recipe || seen.has(recipe.id)) continue;
+    seen.add(recipe.id);
+    recommendations.push({ recipeId: recipe.id, reason: pick.reason });
+    if (recommendations.length === 5) break;
+  }
+  return { recommendations, note: out.note };
+}

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { backupSchema, checkBackupHeader, CONFLICT_STRATEGIES, type Backup } from '../shared/backup';
 import { isValidIsoDate } from '../shared/dates';
 import { describeZodError } from '../shared/schema';
-import { AiError, draftRecipe, OllamaClient, suggestSubstitutions, type FetchLike } from './ai';
+import { AiError, draftRecipe, OllamaClient, recommendRecipes, suggestSubstitutions, type FetchLike } from './ai';
 import { openDatabase } from './db';
 import { AppError } from './errors';
 import { MAX_IMAGE_BYTES, resolveImage, saveImage } from './images';
@@ -244,6 +244,15 @@ export function createApp(options: AppOptions): App {
     if (!b.success) throw new AppError(400, 'Choose an ingredient.');
     const client = aiClient();
     return suggestSubstitutions(client, store.getRecipe(b.data.recipeId), b.data.ingredientIndex);
+  });
+  route('POST', '/api/ai/recommend', async ({ body }) => {
+    const b = z.object({ request: z.string().max(300) }).safeParse(await body());
+    if (!b.success) throw new AppError(400, 'Keep the request to 300 characters or fewer.');
+    const client = aiClient();
+    // Favorites first, so they're always within the model's recipe limit.
+    const recipes = [...store.listRecipes()].sort((x, y) => Number(y.favorite) - Number(x.favorite));
+    const pantry = store.listPantry().filter((p) => !p.usedUp).map((p) => p.name);
+    return recommendRecipes(client, b.data.request, recipes, pantry);
   });
   route('POST', '/api/ai/draft', async ({ body }) => {
     const b = z.object({ request: z.string().max(400) }).safeParse(await body());

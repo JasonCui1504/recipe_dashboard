@@ -556,6 +556,36 @@ code {
   background: var(--lift);
 }
 
+.search.has-ai input {
+  padding-right: 150px;
+}
+.search-ai {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-height: 44px;
+  padding: 8px 16px;
+}
+.search-hint {
+  margin: 8px 0 0;
+  max-width: 640px;
+}
+.llama-results {
+  margin-bottom: 28px;
+  padding: 18px 20px;
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius);
+  background: var(--lift);
+}
+.llama-reason {
+  margin: 10px 0 0;
+  font-size: 0.86rem;
+  color: var(--subtle);
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}
+
 /* ---------- Recipe cards ---------- */
 
 .card-grid {
@@ -2094,6 +2124,15 @@ details summary {
 }
 
 @media (max-width: 520px) {
+  .hide-narrow {
+    display: none;
+  }
+  .search.has-ai input {
+    padding-right: 96px;
+  }
+  .search-ai {
+    padding: 8px 12px;
+  }
   .card {
     padding: 16px;
   }

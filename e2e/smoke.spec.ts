@@ -339,6 +339,10 @@ test('AI is off by default and the app works without it', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Suggest substitutes/ })).toHaveCount(0);
   await page.goto('/recipes/new?ai=1');
   await expect(page.getByText('AI drafting is turned off')).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Ask Llama' })).toHaveCount(0);
+  await page.getByRole('searchbox', { name: 'Search recipes' }).fill('something light for lunch');
+  await expect(page.getByText('Turn on AI in')).toBeVisible();
   await page.goto('/settings');
   await expect(page.getByLabel('Enable AI assistance')).not.toBeChecked();
   await expect(page.getByLabel('Ollama address')).toHaveValue('http://127.0.0.1:11434');
@@ -368,6 +372,19 @@ test('optional AI with a mock local model: suggestions are previews, nothing sav
     await page.getByRole('button', { name: 'Suggest substitutes for garlic' }).click();
     await expect(page.getByRole('dialog')).toContainText('did not return valid JSON');
     await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+
+    // Ask Llama from the home-page search
+    mock.reply({ picks: [{ id: 'R1', reason: 'Quick and uses what you have.' }], note: '' });
+    await page.goto('/');
+    await page.getByRole('searchbox', { name: 'Search recipes' }).fill('something cozy for a cold night');
+    await page.getByRole('button', { name: 'Ask Llama' }).click();
+    const picks = page.locator('.llama-results');
+    await expect(picks).toContainText('Llama’s picks for “something cozy for a cold night”');
+    await expect(picks.locator('.recipe-card')).toHaveCount(1);
+    await expect(picks).toContainText('Quick and uses what you have.');
+    mock.reply('not json');
+    await page.getByRole('searchbox', { name: 'Search recipes' }).press('Enter');
+    await expect(picks.getByRole('alert')).toContainText('did not return valid JSON');
 
     mock.reply({
       title: 'Mock Lemon Rice',

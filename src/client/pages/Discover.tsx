@@ -6,7 +6,7 @@ import { matchRecipes } from '../../shared/matching';
 import { collectTags, filterRecipes, matchesQuickFilter, QUICK_FILTERS, type QuickFilter } from '../../shared/search';
 import { api, errorMessage } from '../api';
 import { EmptyState, ErrorState, Loading, RecipeCard } from '../components/common';
-import { IconCart, IconLeaf, IconPlus, IconSearch } from '../components/Icons';
+import { IconCart, IconLeaf, IconPlus, IconSearch, IconSpark } from '../components/Icons';
 import { WeekMenu } from '../components/WeekMenu';
 import { useDocumentTitle, useLoader, useRecipes, useToast } from '../state';
 
@@ -31,7 +31,30 @@ export function Discover() {
   const thisWeek = startOfWeek(toIsoDate(new Date()));
   const menuWeek = addDays(thisWeek, weekOffset * 7);
 
+  const ai = useLoader(() => api.ai.settings(), []);
+  const aiOn = ai.data?.enabled === true;
+  const [llama, setLlama] = useState<{
+    query: string;
+    loading: boolean;
+    error: string | null;
+    picks: Array<{ recipeId: string; reason: string }>;
+    note: string;
+  } | null>(null);
+
+  const askLlama = async () => {
+    const q = query.trim();
+    if (!q) return;
+    setLlama({ query: q, loading: true, error: null, picks: [], note: '' });
+    try {
+      const r = await api.ai.recommend(q);
+      setLlama((cur) => (cur?.query === q ? { query: q, loading: false, error: null, picks: r.recommendations, note: r.note } : cur));
+    } catch (err) {
+      setLlama((cur) => (cur?.query === q ? { query: q, loading: false, error: errorMessage(err), picks: [], note: '' } : cur));
+    }
+  };
+
   const update = (q: string, filters: string[]) => {
+    if (q.trim() !== query.trim()) setLlama(null);
     const next = new URLSearchParams();
     if (q) next.set('q', q);
     if (filters.length) next.set('f', filters.join(','));
@@ -83,7 +106,14 @@ export function Discover() {
         <h1 id="hero-title" className="hero-title">
           What sounds good?
         </h1>
-        <form className="search" role="search" onSubmit={(e) => e.preventDefault()}>
+        <form
+          className={`search ${aiOn ? 'has-ai' : ''}`}
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (aiOn) void askLlama();
+          }}
+        >
           <label htmlFor="discover-search" className="visually-hidden">
             Search recipes
           </label>
@@ -96,7 +126,28 @@ export function Discover() {
             onChange={(e) => update(e.target.value, active)}
             autoComplete="off"
           />
+          {aiOn && (
+            <button type="submit" className="btn btn-primary search-ai" disabled={!query.trim() || llama?.loading} aria-label="Ask Llama">
+              <IconSpark size={16} />{' '}
+              {llama?.loading ? (
+                'Thinking…'
+              ) : (
+                <>
+                  Ask<span className="hide-narrow"> Llama</span>
+                </>
+              )}
+            </button>
+          )}
         </form>
+        {aiOn ? (
+          <p className="hint search-hint">Type to search instantly, or describe what you feel like and press Ask Llama (Enter) to have your local model pick from your recipes.</p>
+        ) : (
+          query.trim().split(/\s+/).length >= 3 && (
+            <p className="hint search-hint">
+              Want your local Llama to pick from your recipes for requests like this? Turn on AI in <Link to="/settings">Settings</Link>.
+            </p>
+          )
+        )}
         <div className="chips" role="group" aria-label="Quick filters">
           {QUICK_FILTERS.map((f) => (
             <button key={f.id} type="button" className="chip" aria-pressed={active.includes(f.id)} title={f.description} onClick={() => toggle(f.id)}>
@@ -127,6 +178,38 @@ export function Discover() {
         </EmptyState>
       ) : filtering ? (
         <section aria-labelledby="results-title" className="section">
+          {llama && (
+            <div className="llama-results" aria-live="polite">
+              <h2 className="section-title small-title">
+                <IconSpark size={18} /> Llama’s picks for “{llama.query}”
+              </h2>
+              {llama.loading ? (
+                <Loading label="Asking your local model… (this can take a few seconds)" />
+              ) : llama.error ? (
+                <div className="state state-error" role="alert">
+                  <p>{llama.error}</p>
+                  <p className="small">The regular search results are below.</p>
+                </div>
+              ) : (
+                <>
+                  <p className="ai-label">
+                    <IconSpark size={16} /> Suggestions from your local Llama, chosen only from your own recipes. Reasons are its opinion, not verified.
+                  </p>
+                  {llama.picks.length === 0 ? (
+                    <p className="muted">{llama.note || 'Llama didn’t find a good match in your recipes.'}</p>
+                  ) : (
+                    <div className="card-grid">
+                      {llama.picks.map((p) => {
+                        const r = recipes.find((x) => x.id === p.recipeId);
+                        return r ? <RecipeCard key={r.id} recipe={r} extra={p.reason ? <p className="llama-reason">{p.reason}</p> : null} /> : null;
+                      })}
+                    </div>
+                  )}
+                  {llama.picks.length > 0 && llama.note && <p className="muted small">{llama.note}</p>}
+                </>
+              )}
+            </div>
+          )}
           <div className="section-head">
             <h2 id="results-title" className="section-title">
               {usePantry ? 'From your pantry' : 'Results'}

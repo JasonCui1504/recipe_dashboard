@@ -108,6 +108,8 @@ export const api = {
         recipeId,
         ingredientIndex,
       }),
+    recommend: (requestText: string) =>
+      request<{ recommendations: Array<{ recipeId: string; reason: string }>; note: string }>('POST', '/api/ai/recommend', { request: requestText }),
     draft: (requestText: string) => request<{ draft: RecipeInput }>('POST', '/api/ai/draft', { request: requestText }),
   },
 };

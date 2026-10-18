@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AiError, draftRecipe, OllamaClient, suggestSubstitutions, validateBaseUrl } from '../src/server/ai';
+import { AiError, draftRecipe, OllamaClient, recommendRecipes, suggestSubstitutions, validateBaseUrl } from '../src/server/ai';
 import { recipeInputSchema } from '../src/shared/schema';
 import { ing, recipe } from './helpers';
 import { startMockOllama, type MockOllama } from './mock-ollama';
@@ -118,4 +118,39 @@ describe('Ollama client against a mock server', () => {
     mock.reply({ title: 'Nothing', servings: 2, prepMinutes: 1, cookMinutes: 1, difficulty: 'easy', ingredients: [], steps: [], tags: [] });
     expect(await code(draftRecipe(client(), 'anything'))).toBe('invalid-output');
   });
+
+  it('recommends from the user’s own recipes, dropping made-up or duplicate ids', async () => {
+    const recipes = [
+      recipe({ id: 'uuid-a', title: 'Lemon Chicken', ingredients: [ing(2, '', 'chicken thighs'), ing(1, '', 'lemon')] }),
+      recipe({ id: 'uuid-b', title: 'Spinach Pasta', ingredients: [ing(200, 'g', 'pasta'), ing(2, 'cups', 'spinach')] }),
+    ];
+    mock.reply({
+      picks: [
+        { id: 'R2', reason: 'Uses your spinach.' },
+        { id: 'R9', reason: 'Does not exist.' },
+        { id: 'R2', reason: 'Duplicate.' },
+        { id: 'uuid-a', reason: 'Not a listed id.' },
+        { id: '1', reason: 'Quick chicken.' },
+      ],
+      note: '',
+    });
+    const r = await recommendRecipes(client(), 'something with spinach', recipes, ['spinach', 'eggs']);
+    expect(r.recommendations).toEqual([
+      { recipeId: 'uuid-b', reason: 'Uses your spinach.' },
+      { recipeId: 'uuid-a', reason: 'Quick chicken.' },
+    ]);
+    const prompt = (mock.requests.at(-1)!.body as { messages: Array<{ content: string }> }).messages.map((m) => m.content).join('\n');
+    expect(prompt).toContain('R1: Lemon Chicken');
+    expect(prompt).toContain('In the pantry: spinach, eggs');
+    expect(prompt).not.toContain('uuid-');
+  });
+
+  it('handles an empty answer and malformed output from the recommender', async () => {
+    mock.reply({ picks: [], note: 'Nothing in your recipes is vegan dessert.' });
+    expect(await recommendRecipes(client(), 'vegan dessert', [recipe()], [])).toEqual({ recommendations: [], note: 'Nothing in your recipes is vegan dessert.' });
+    mock.reply('{"picks": [oops');
+    expect(await code(recommendRecipes(client(), 'soup', [recipe()], []))).toBe('invalid-output');
+    expect(await code(recommendRecipes(client(), '   ', [recipe()], []))).toBe('invalid-config');
+  });
 });
+
