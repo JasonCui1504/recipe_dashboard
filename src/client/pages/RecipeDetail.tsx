@@ -8,7 +8,8 @@ import { capitalize, EmptyState, ErrorState, FavoriteButton, formatMinutes, Load
 import { IconCalendar, IconCart, IconChevronLeft, IconCopy, IconEdit, IconPlay, IconSpark, IconTrash } from '../components/Icons';
 import { RecipeArt } from '../components/RecipeArt';
 import { ServingsStepper } from '../components/ServingsStepper';
-import { useConfirm, useDocumentTitle, useLoader, useRecipes, useToast } from '../state';
+import { useConfirm, useDocumentTitle, useLoader, useRecipes, useToast, useUnitSystem } from '../state';
+import { toSystem } from '../../shared/units';
 
 type Subs = Array<{ substitute: string; amount: string; note: string }>;
 
@@ -27,6 +28,7 @@ export function RecipeDetail() {
   const [skipStaples, setSkipStaples] = useState(true);
   const [busy, setBusy] = useState(false);
   const ai = useLoader(() => api.ai.settings(), []);
+  const [units, setUnits] = useUnitSystem();
   const [subs, setSubs] = useState<{ index: number; loading: boolean; error: string | null; items: Subs } | null>(null);
 
   const scaled = useMemo(() => (recipe ? scaleIngredients(recipe.ingredients, recipe.servings, servings) : null), [recipe, servings]);
@@ -217,6 +219,25 @@ export function RecipeDetail() {
             <span>Servings</span>
             <ServingsStepper value={servings} onChange={setServings} />
           </div>
+          <div className="servings-row">
+            <span id="units-label">Units</span>
+            <div className="segmented segmented-small" role="group" aria-labelledby="units-label">
+              {(
+                [
+                  ['original', 'As written'],
+                  ['metric', 'Metric'],
+                  ['us', 'US'],
+                ] as const
+              ).map(([id, label]) => (
+                <button key={id} type="button" aria-pressed={units === id} onClick={() => setUnits(id)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {units !== 'original' && (
+            <p className="muted small">≈ marks converted amounts. Cups and spoons are US measures; volume and weight are never swapped.</p>
+          )}
           {scaledNote && (
             <p className="note" role="note">
               Quantities scaled from {recipe.servings} to {servings} servings. Cooking times, pan sizes and seasoning may not scale in a straight line — use
@@ -230,8 +251,20 @@ export function RecipeDetail() {
                 <label>
                   <input type="checkbox" checked={checked.has(i)} onChange={() => toggle(i)} />
                   <span>
-                    {ing.quantity !== null && <strong className="qty">{formatQuantity(ing.quantity)} </strong>}
-                    {ing.unit && <span>{ing.unit} </span>}
+                    {(() => {
+                      const shown = toSystem(ing.quantity, ing.unit, units);
+                      return (
+                        <>
+                          {shown.quantity !== null && (
+                            <strong className="qty" title={shown.converted ? `Converted from ${formatQuantity(ing.quantity)} ${ing.unit}` : undefined}>
+                              {shown.converted ? '≈ ' : ''}
+                              {formatQuantity(shown.quantity)}{' '}
+                            </strong>
+                          )}
+                          {shown.unit && <span>{shown.unit} </span>}
+                        </>
+                      );
+                    })()}
                     <span>{ing.name}</span>
                     {ing.note && <span className="muted">, {ing.note}</span>}
                     {ing.optional && <span className="badge">optional</span>}

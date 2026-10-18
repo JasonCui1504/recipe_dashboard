@@ -1,5 +1,13 @@
 import { normalizeIngredientName, normalizeUnit } from './ingredients';
 import type { Ingredient, PantryItem, Recipe } from './schema';
+import { convertQuantity } from './units';
+
+/** True when the pantry amount is known to be less than needed (same or convertible units only). */
+function enoughCheck(have: number, haveUnit: string, need: number, needUnit: string): boolean {
+  if (normalizeUnit(haveUnit) === normalizeUnit(needUnit)) return have < need;
+  const converted = convertQuantity(have, haveUnit, needUnit);
+  return converted !== null && converted < need - 1e-9;
+}
 
 export interface MatchOptions {
   /** Count optional ingredients as missing when you don't have them. */
@@ -53,8 +61,7 @@ export function matchRecipe(
       if (
         pantryItem.quantity !== null &&
         ingredient.quantity !== null &&
-        normalizeUnit(pantryItem.unit) === normalizeUnit(ingredient.unit) &&
-        pantryItem.quantity < ingredient.quantity
+        enoughCheck(pantryItem.quantity, pantryItem.unit, ingredient.quantity, ingredient.unit)
       ) {
         warnings.push('you may not have enough');
       }

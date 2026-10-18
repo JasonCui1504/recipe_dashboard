@@ -6,9 +6,9 @@ A dark-green, offline, local-first personal cookbook and kitchen companion. Keep
 - **Grocery plan** (`Shopping List → Plan groceries for a week`): see everything a week's menu needs, scaled and combined, with what's already in your pantry flagged. Untick what you don't need, add the rest to your shopping list, or print it.
 - **Discover**: search, quick filters (Quick Meals, Vegetarian, High Protein, Favorites, Use My Pantry), categories, favorites, quick picks and recently added recipes.
 - **My Recipes**: your full library, with filtering, sorting, create, edit, duplicate, favorite and delete (deletes ask for confirmation).
-- **Recipe page**: an ingredient checklist, serving-size scaling with fractions, numbered steps, notes, rating and optional nutrition (always labelled unverified).
+- **Recipe page**: an ingredient checklist, serving-size scaling with fractions, an As written / Metric / US unit switch, numbered steps, notes, rating and optional nutrition (always labelled unverified).
 - **Cooking mode**: a full-screen view with one large step at a time, previous/next buttons (or ← →), progress, and an ingredient checklist that doesn't lose your place.
-- **Pantry**: track what you have, with quantity, category, expiry and notes. Mark an item used (reversible). The **What can I cook?** tab explains every match.
+- **Pantry**: a simple list of what you have. Add several items at once ("eggs, spinach, rice"); amounts and expiry dates are optional. Tap an item to strike it off when it's finished; it moves to a Finished list with Undo and one-tap Restock. The **What can I cook?** tab explains every match.
 - **Meal Planner**: a week view with breakfast, lunch, dinner and custom meals, per-meal servings, and protection against duplicates and repeats.
 - **Shopping List**: add items yourself, from a recipe, or from the week's meals. Items are grouped by aisle and combined only when that's safe, and checked-off items stay until you clear them (with confirmation).
 - **Backup & restore**: export to a versioned JSON file, then import with a preview and an explicit conflict choice.
@@ -124,7 +124,7 @@ To run the browser tests you need a Playwright Chromium. Either run `npx playwri
 ## Known limitations
 
 - **Ingredient matching is deliberately strict.** It ignores case, plurals and a small synonym list (e.g. scallion → green onion), but "oil" won't match "olive oil". Quantities are compared only when units are identical.
-- **No unit conversion.** "1 cup rice" and "200 g rice" stay as separate shopping items.
+- **Unit conversion stays within a kind of measure.** Weights (g, kg, oz, lb) and volumes (tsp, tbsp, cup, ml, l, fl oz…) convert and combine; "1 cup rice" and "200 g rice" stay separate, because converting volume to weight depends on the ingredient. Cups and spoons are US measures.
 - **Scaling only changes ingredient amounts.** Cooking times, pan sizes and seasoning may need adjusting, and the recipe page says so.
 - **Cooking mode doesn't keep the screen awake.** Use your device's display settings if needed.
 - **Backups don't embed photos.** Copy `data/uploads/`. Photos removed from a recipe (or uploaded but never saved) stay in `data/uploads/` until you delete them.

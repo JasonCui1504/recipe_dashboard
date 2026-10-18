@@ -65,6 +65,12 @@ test('discover, search, detail, scaling and cooking mode', async ({ page }) => {
   await expect(lentils).toContainText('1/2 cup red lentils');
   await expect(page.locator('.checklist li', { hasText: 'salt' })).toContainText('salt, to taste');
 
+  // Unit display: metric converts cups; "as written" restores them
+  await page.getByRole('group', { name: 'Units' }).getByRole('button', { name: 'Metric' }).click();
+  await expect(lentils).toContainText('≈ 120 ml red lentils');
+  await page.getByRole('group', { name: 'Units' }).getByRole('button', { name: 'As written' }).click();
+  await expect(lentils).toContainText('1/2 cup red lentils');
+
   // Ingredient checklist is temporary UI state
   await lentils.getByRole('checkbox').check();
   await expect(lentils).toHaveClass(/is-checked/);
@@ -171,9 +177,9 @@ test('home menu calendar: pick lunch & dinner, then plan next week’s groceries
 
   // Add spinach to the pantry so the review shows it as already there
   await page.goto('/pantry');
-  await page.getByLabel('Ingredient *').fill('baby spinach');
-  await page.getByRole('button', { name: 'Add item' }).click();
-  await expect(page.locator('.item-row', { hasText: 'baby spinach' })).toBeVisible();
+  await page.getByLabel('Add to pantry').fill('baby spinach');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.locator('.pantry-item', { hasText: 'baby spinach' })).toBeVisible();
 
   await page.goto('/');
   await page.getByRole('group', { name: 'Which week' }).getByRole('button', { name: 'Next week' }).click();
@@ -243,11 +249,18 @@ test('create, edit with unsaved-change guard, and delete a recipe', async ({ pag
 
 test('pantry and what-can-I-cook', async ({ page }) => {
   await page.goto('/pantry');
+  // Several items at once, comma-separated — no amounts needed.
+  await page.getByLabel('Add to pantry').fill('eggs, avocado, sourdough bread, Lemon juice');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
   for (const name of ['eggs', 'avocado', 'sourdough bread', 'Lemon juice']) {
-    await page.getByLabel('Ingredient *').fill(name);
-    await page.getByRole('button', { name: 'Add item' }).click();
-    await expect(page.locator('.item-row', { hasText: name })).toBeVisible();
+    await expect(page.locator('.pantry-item', { hasText: name })).toBeVisible();
   }
+  // Optional details for a single item
+  await page.getByLabel('Add to pantry').fill('milk');
+  await page.getByRole('button', { name: /Add details/ }).click();
+  await page.getByLabel('Expires').fill('2099-01-31');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.locator('.pantry-item', { hasText: 'milk' })).toContainText('Use by');
   await page.getByRole('tab', { name: 'What can I cook?' }).click();
   const toast = page.locator('.match-card', { hasText: 'Avocado and Egg Toast' });
   await expect(toast).toContainText('Ready to cook');
@@ -257,12 +270,29 @@ test('pantry and what-can-I-cook', async ({ page }) => {
   await page.getByLabel('Assume I have pantry staples (salt, oil…)').uncheck();
   await expect(toast).toContainText('Missing');
 
-  // Mark used is reversible
+  // Strike an item off: it moves to "Finished", can be undone, and restocked.
   await page.getByRole('tab', { name: 'Inventory' }).click();
-  await page.locator('.item-row', { hasText: 'avocado' }).getByRole('button', { name: 'Mark used' }).click();
-  await page.getByRole('button', { name: /Show used-up items/ }).click();
-  await page.locator('.item-row', { hasText: 'avocado' }).getByRole('button', { name: 'Restock' }).click();
-  await expect(page.locator('.item-list').first()).toContainText('avocado');
+  await page.getByRole('button', { name: 'Finished avocado' }).click();
+  await expect(page.locator('.finished-item', { hasText: 'avocado' })).toBeVisible();
+  await expect(page.locator('.pantry-item', { hasText: 'avocado' })).toHaveCount(0);
+  await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.pantry-item', { hasText: 'avocado' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Finished eggs' }).click();
+  await expect(page.locator('.finished-item', { hasText: 'eggs' })).toBeVisible();
+  await page.getByRole('tab', { name: 'What can I cook?' }).click();
+  await expect(page.locator('.match-card', { hasText: 'Avocado and Egg Toast' })).toContainText('eggs');
+  await page.getByRole('tab', { name: 'Inventory' }).click();
+  await page.getByRole('button', { name: 'Restock eggs' }).click();
+  await expect(page.locator('.pantry-item', { hasText: 'eggs' })).toBeVisible();
+
+  // Typing a finished item again brings it back rather than duplicating it.
+  await page.getByRole('button', { name: 'Finished milk' }).click();
+  await expect(page.locator('.finished-item', { hasText: 'milk' })).toBeVisible();
+  await page.getByLabel('Add to pantry').fill('Milk');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.locator('.pantry-item', { hasText: /milk/i })).toHaveCount(1);
+  await expect(page.locator('.finished-item')).toHaveCount(0);
 });
 
 test('export a backup and restore it into a clean database', async ({ page, browser }, testInfo) => {

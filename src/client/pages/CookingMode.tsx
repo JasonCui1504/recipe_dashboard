@@ -3,7 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { describeIngredient, scaleIngredients } from '../../shared/quantity';
 import { EmptyState, ErrorState, Loading } from '../components/common';
 import { IconChevronLeft, IconChevronRight, IconClose } from '../components/Icons';
-import { useDocumentTitle, useRecipes } from '../state';
+import { useDocumentTitle, useRecipes, useUnitSystem } from '../state';
+import { toSystem } from '../../shared/units';
 
 /** Ticked ingredients survive re-renders and reloads for this tab only. */
 function useSessionSet(key: string) {
@@ -43,6 +44,7 @@ export function CookingMode() {
   const step = Math.min(Math.max(1, Number(params.get('step')) || 1), Math.max(1, total));
   const [showIngredients, setShowIngredients] = useState(false);
   const [checked, toggle] = useSessionSet(`cook:${id}:checked`);
+  const [units] = useUnitSystem();
 
   const go = useCallback(
     (n: number) => {
@@ -144,7 +146,7 @@ export function CookingMode() {
                 <li key={i} className={checked.has(i) ? 'is-checked' : ''}>
                   <label>
                     <input type="checkbox" checked={checked.has(i)} onChange={() => toggle(i)} />
-                    <span>{describeIngredient(ing)}</span>
+                    <span>{describeIngredient({ ...ing, ...toSystem(ing.quantity, ing.unit, units) })}</span>
                   </label>
                 </li>
               ))}

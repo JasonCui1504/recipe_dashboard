@@ -333,7 +333,7 @@ export class Store {
           summary.skipped += 1;
         } else if (plan.action === 'merge') {
           const target = existing.find((i) => i.id === plan.targetId)!;
-          this.writeShopping({ ...target, quantity: plan.quantity, sources: plan.sources, updatedAt: ts }, false);
+          this.writeShopping({ ...target, quantity: plan.quantity, unit: plan.unit, sources: plan.sources, updatedAt: ts }, false);
           summary.merged += 1;
         } else {
           this.writeShopping({ ...plan.item, id: randomUUID(), createdAt: ts, updatedAt: ts }, true);

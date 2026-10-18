@@ -1,11 +1,13 @@
 import { guessCategory, normalizeIngredientName, normalizeUnit } from './ingredients';
-import { round, scaleIngredients } from './quantity';
+import { scaleIngredients } from './quantity';
 import type { Meal, PantryItem, Recipe } from './schema';
+import { addQuantities, canCombineUnits } from './units';
 
 /**
  * Groceries needed for a set of planned meals ("what do I need for next week?").
  * Lines are combined with the same conservative rules as the shopping list:
- * identical normalized name AND unit, and both quantities numeric or both blank.
+ * identical normalized name, compatible units (converted when needed), and both
+ * quantities numeric or both blank.
  */
 export interface GroceryLine {
   /** Normalized ingredient name — used to include/exclude a line when adding. */
@@ -59,10 +61,18 @@ export function planGroceries(
       const key = normalizeIngredientName(ing.name);
       const unit = normalizeUnit(ing.unit);
       const target = lines.find(
-        (l) => l.key === key && normalizeUnit(l.unit) === unit && (l.quantity === null) === (ing.quantity === null),
+        (l) =>
+          l.key === key &&
+          (l.quantity === null && ing.quantity === null
+            ? normalizeUnit(l.unit) === unit
+            : l.quantity !== null && ing.quantity !== null && canCombineUnits(l.unit, ing.unit)),
       );
       if (target) {
-        if (target.quantity !== null && ing.quantity !== null) target.quantity = round(target.quantity + ing.quantity, 3);
+        if (target.quantity !== null && ing.quantity !== null) {
+          const sum = addQuantities({ quantity: target.quantity, unit: target.unit }, { quantity: ing.quantity, unit: ing.unit })!;
+          target.quantity = sum.quantity;
+          target.unit = sum.unit;
+        }
         target.staple = target.staple && ing.staple;
         target.optional = target.optional && ing.optional;
         if (!target.usedIn.includes(label)) target.usedIn.push(label);

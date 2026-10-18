@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Recipe } from '../shared/schema';
+import type { UnitSystem } from '../shared/units';
 import { api, errorMessage } from './api';
 
 // ---------------------------------------------------------------------------
@@ -82,12 +83,17 @@ export function useToggleFavorite() {
 // ---------------------------------------------------------------------------
 
 type ToastTone = 'info' | 'success' | 'error';
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
 interface Toast {
   id: number;
   message: string;
   tone: ToastTone;
+  action?: ToastAction;
 }
-type ToastFn = (message: string, tone?: ToastTone) => void;
+type ToastFn = (message: string, tone?: ToastTone, action?: ToastAction) => void;
 const ToastContext = createContext<ToastFn | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -95,10 +101,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const next = useRef(1);
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   const push = useCallback<ToastFn>(
-    (message, tone = 'info') => {
+    (message, tone = 'info', action) => {
       const id = next.current++;
-      setToasts((t) => [...t.slice(-3), { id, message, tone }]);
-      window.setTimeout(() => dismiss(id), tone === 'error' ? 8000 : 4500);
+      setToasts((t) => [...t.slice(-3), { id, message, tone, action }]);
+      window.setTimeout(() => dismiss(id), tone === 'error' || action ? 8000 : 4500);
     },
     [dismiss],
   );
@@ -109,6 +115,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div key={t.id} className={`toast toast-${t.tone}`}>
             <span>{t.message}</span>
+            {t.action && (
+              <button
+                type="button"
+                className="toast-action"
+                onClick={() => {
+                  t.action!.onClick();
+                  dismiss(t.id);
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
             <button type="button" className="toast-close" onClick={() => dismiss(t.id)} aria-label="Dismiss message">
               ×
             </button>
@@ -234,4 +252,30 @@ export function useLoader<T>(loader: () => Promise<T>, deps: readonly unknown[])
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const setData = useCallback((fn: (d: T) => T) => setState((s) => (s.data === null ? s : { ...s, data: fn(s.data) })), []);
   return { ...state, reload, setData };
+}
+
+// ---------------------------------------------------------------------------
+// Preferred units for showing ingredient amounts (remembered in this browser).
+// ---------------------------------------------------------------------------
+
+const UNIT_KEY = 'cookbook:units';
+
+export function useUnitSystem(): [UnitSystem, (u: UnitSystem) => void] {
+  const [system, setSystem] = useState<UnitSystem>(() => {
+    try {
+      const v = localStorage.getItem(UNIT_KEY);
+      return v === 'metric' || v === 'us' ? v : 'original';
+    } catch {
+      return 'original';
+    }
+  });
+  const set = useCallback((u: UnitSystem) => {
+    setSystem(u);
+    try {
+      localStorage.setItem(UNIT_KEY, u);
+    } catch {
+      /* storage unavailable: the choice lasts for this visit */
+    }
+  }, []);
+  return [system, set];
 }

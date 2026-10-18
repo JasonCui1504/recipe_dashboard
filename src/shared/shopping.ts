@@ -1,6 +1,7 @@
 import { guessCategory, normalizeIngredientName, normalizeUnit } from './ingredients';
 import { round } from './quantity';
 import type { ShoppingItem, ShoppingSource } from './schema';
+import { addQuantities, canCombineUnits } from './units';
 
 export interface ShoppingAddition {
   name: string;
@@ -11,7 +12,7 @@ export interface ShoppingAddition {
 }
 
 export type MergePlan =
-  | { action: 'merge'; targetId: string; quantity: number | null; sources: ShoppingSource[] }
+  | { action: 'merge'; targetId: string; quantity: number | null; unit: string; sources: ShoppingSource[] }
   | { action: 'skip'; targetId: string; reason: string }
   | { action: 'create'; item: Omit<ShoppingItem, 'id' | 'createdAt' | 'updatedAt'> };
 
@@ -23,7 +24,8 @@ function sameSource(a: ShoppingSource, b: ShoppingSource): boolean {
  * Decides how an incoming ingredient joins the list. Items combine only when:
  *  - the normalized names are identical (no fuzzy matching), and
  *  - the existing item is not yet checked off, and
- *  - the units are identical after normalization, and
+ *  - the units are identical, or the same kind of measure (weight or volume),
+ *    in which case the total is converted ("1 cup + 2 tbsp" → "1 1/8 cup"), and
  *  - both quantities are numeric, or both are blank ("salt, to taste").
  * A meal-plan ingredient already on the list for the same meal is skipped,
  * so adding a week's meals twice doesn't double the list.
@@ -43,13 +45,16 @@ export function planShoppingAddition(existing: readonly ShoppingItem[], add: Sho
     (item) =>
       !item.checked &&
       normalizeIngredientName(item.name) === key &&
-      normalizeUnit(item.unit) === unit &&
-      (item.quantity === null) === (add.quantity === null),
+      (item.quantity === null && add.quantity === null
+        ? normalizeUnit(item.unit) === unit
+        : item.quantity !== null && add.quantity !== null && canCombineUnits(item.unit, add.unit)),
   );
   if (target) {
-    const quantity =
-      target.quantity === null || add.quantity === null ? null : round(target.quantity + add.quantity, 3);
-    return { action: 'merge', targetId: target.id, quantity, sources: [...target.sources, add.source] };
+    const sum =
+      target.quantity === null || add.quantity === null
+        ? { quantity: null, unit: target.unit }
+        : addQuantities({ quantity: target.quantity, unit: target.unit }, { quantity: add.quantity, unit: add.unit })!;
+    return { action: 'merge', targetId: target.id, quantity: sum.quantity, unit: sum.unit, sources: [...target.sources, add.source] };
   }
 
   return {
