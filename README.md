@@ -1,6 +1,6 @@
 # The Cookbook
 
-A warm, offline, local-first personal cookbook and kitchen companion. Keep your recipes, scale them, cook step by step, track your pantry, see what you can make, plan the week and build a shopping list. Everything runs on your own computer, and nothing is sent anywhere.
+A dark-green, offline, local-first personal cookbook and kitchen companion. Keep your recipes, scale them, cook step by step, track your pantry, see what you can make, plan the week and build a shopping list. Everything runs on your own computer, and nothing is sent anywhere.
 
 - **This week's / next week's menu** on the home page: a 7-day lunch & dinner calendar where you pick from your recipes. From Friday it shows next week by default.
 - **Grocery plan** (`Shopping List → Plan groceries for a week`): see everything a week's menu needs, scaled and combined, with what's already in your pantry flagged. Untick what you don't need, add the rest to your shopping list, or print it.
@@ -13,6 +13,10 @@ A warm, offline, local-first personal cookbook and kitchen companion. Keep your 
 - **Shopping List**: add items yourself, from a recipe, or from the week's meals. Items are grouped by aisle and combined only when that's safe, and checked-off items stay until you clear them (with confirmation).
 - **Backup & restore**: export to a versioned JSON file, then import with a preview and an explicit conflict choice.
 - **Optional local AI**: if you run Ollama, a local model (e.g. Llama 3.1 8B) can suggest substitutions or draft a recipe. It's off by default and never saves anything by itself.
+
+## Look and feel
+
+The theme matches [jascui.com](https://jascui.com): a near-black green canvas (`#0d1110`), dark green surfaces, a `#4a7c59` accent and soft green-white text, set in Geist and Geist Mono. The fonts are bundled from npm (`@fontsource-variable/geist*`), so nothing loads from the internet. All the colors are CSS variables at the top of `src/client/styles.css`.
 
 ## Requirements
 

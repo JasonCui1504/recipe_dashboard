@@ -14,6 +14,9 @@ import { RecipeEditorPage } from './pages/RecipeEditor';
 import { Settings } from './pages/Settings';
 import { Shopping } from './pages/Shopping';
 import { ConfirmProvider, RecipesProvider, ToastProvider } from './state';
+// Fonts are bundled from npm (no network): Geist, the same family as jascui.com.
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
 import './styles.css';
 
 function NotFound() {

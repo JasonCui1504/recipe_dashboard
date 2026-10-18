@@ -89,8 +89,8 @@ export function CookingMode() {
   return (
     <div className="cooking">
       <header className="cooking-head">
-        <Link to={exitTo} className="btn btn-ghost">
-          <IconClose size={18} /> Exit cooking mode
+        <Link to={exitTo} className="btn btn-ghost" aria-label="Exit cooking mode">
+          <IconClose size={18} /> Exit
         </Link>
         <div className="cooking-title">
           <p className="kicker">Cooking{servings !== recipe.servings ? ` · ${servings} servings` : ''}</p>

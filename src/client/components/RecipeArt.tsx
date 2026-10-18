@@ -9,12 +9,13 @@ import { api } from '../api';
 
 type Motif = 'bowl' | 'pan' | 'pot' | 'plate' | 'toast' | 'jar' | 'pasta';
 
+// Dark, muted palettes matching the site theme (canvas #0d1110, accent #4a7c59).
 const PALETTES = [
-  { bg: '#ece6d6', a: '#7d9474', b: '#c98b5a', c: '#e7c873' },
-  { bg: '#e8e9dc', a: '#a35d45', b: '#7d9474', c: '#f0d9a7' },
-  { bg: '#efe4d3', a: '#5f7b6a', b: '#d39b64', c: '#b9c9a6' },
-  { bg: '#e6e4d8', a: '#b27150', b: '#94a97f', c: '#f3e2b5' },
-  { bg: '#f0e8da', a: '#6c8a74', b: '#c7684f', c: '#e9cf8f' },
+  { bg: '#16201a', a: '#4a7c59', b: '#b5744f', c: '#c2a65e' },
+  { bg: '#1a241d', a: '#a2593f', b: '#5f8f6c', c: '#c9b273' },
+  { bg: '#141e19', a: '#3f6b4f', b: '#c08a5a', c: '#8fae84' },
+  { bg: '#1c2620', a: '#ad6b4b', b: '#6f9a74', c: '#cdb67a' },
+  { bg: '#18221c', a: '#58876a', b: '#b1614b', c: '#bfa267' },
 ];
 
 function hash(s: string): number {
@@ -35,7 +36,8 @@ export function pickMotif(recipe: Pick<Recipe, 'title' | 'tags'>): Motif {
 }
 
 function Motifs({ motif, p }: { motif: Motif; p: (typeof PALETTES)[number] }) {
-  const ink = '#2f3130';
+  const ink = '#6d8a78';
+  const plate = '#24312a';
   switch (motif) {
     case 'bowl':
       return (
@@ -44,7 +46,7 @@ function Motifs({ motif, p }: { motif: Motif; p: (typeof PALETTES)[number] }) {
           <circle cx="80" cy="74" r="9" fill={p.a} />
           <circle cx="104" cy="70" r="8" fill={p.b} />
           <circle cx="122" cy="76" r="7" fill={p.a} opacity=".8" />
-          <path d="M46 80h108a54 40 0 0 1-108 0z" fill="#faf7f0" stroke={ink} strokeWidth="2.5" />
+          <path d="M46 80h108a54 40 0 0 1-108 0z" fill={plate} stroke={ink} strokeWidth="2.5" />
           <path d="M70 100c12 6 48 6 60 0" stroke={p.a} strokeWidth="3" fill="none" strokeLinecap="round" />
         </g>
       );
@@ -52,9 +54,9 @@ function Motifs({ motif, p }: { motif: Motif; p: (typeof PALETTES)[number] }) {
       return (
         <g>
           <path d="M150 86h38" stroke={ink} strokeWidth="6" strokeLinecap="round" />
-          <ellipse cx="96" cy="86" rx="56" ry="30" fill="#faf7f0" stroke={ink} strokeWidth="2.5" />
+          <ellipse cx="96" cy="86" rx="56" ry="30" fill={plate} stroke={ink} strokeWidth="2.5" />
           <ellipse cx="96" cy="84" rx="44" ry="21" fill={p.c} />
-          <circle cx="82" cy="80" r="9" fill="#fff8e8" />
+          <circle cx="82" cy="80" r="9" fill="#e3eadf" />
           <circle cx="82" cy="80" r="4.5" fill={p.b} />
           <circle cx="108" cy="90" r="5" fill={p.a} />
           <circle cx="114" cy="76" r="4" fill={p.a} />
@@ -64,7 +66,7 @@ function Motifs({ motif, p }: { motif: Motif; p: (typeof PALETTES)[number] }) {
       return (
         <g>
           <path d="M80 34c0-8 8-8 8-16M100 34c0-8 8-8 8-16M120 34c0-8 8-8 8-16" stroke={p.a} strokeWidth="3" fill="none" strokeLinecap="round" />
-          <rect x="52" y="52" width="96" height="60" rx="14" fill="#faf7f0" stroke={ink} strokeWidth="2.5" />
+          <rect x="52" y="52" width="96" height="60" rx="14" fill={plate} stroke={ink} strokeWidth="2.5" />
           <path d="M52 66h96" stroke={ink} strokeWidth="2.5" />
           <path d="M40 62h12M148 62h12" stroke={ink} strokeWidth="5" strokeLinecap="round" />
           <ellipse cx="100" cy="58" rx="40" ry="5" fill={p.b} />
@@ -74,10 +76,10 @@ function Motifs({ motif, p }: { motif: Motif; p: (typeof PALETTES)[number] }) {
     case 'toast':
       return (
         <g>
-          <ellipse cx="100" cy="104" rx="70" ry="10" fill="#faf7f0" stroke={ink} strokeWidth="2" />
+          <ellipse cx="100" cy="104" rx="70" ry="10" fill={plate} stroke={ink} strokeWidth="2" />
           <path d="M60 98V58a20 18 0 0 1 14-20h52a20 18 0 0 1 14 20v40z" fill={p.c} stroke={ink} strokeWidth="2.5" />
           <path d="M70 70c10-10 50-10 60 0v10H70z" fill={p.a} />
-          <ellipse cx="100" cy="68" rx="12" ry="9" fill="#fff8e8" />
+          <ellipse cx="100" cy="68" rx="12" ry="9" fill="#e3eadf" />
           <circle cx="100" cy="68" r="5" fill={p.b} />
         </g>
       );
@@ -85,7 +87,7 @@ function Motifs({ motif, p }: { motif: Motif; p: (typeof PALETTES)[number] }) {
       return (
         <g>
           <rect x="74" y="28" width="52" height="12" rx="3" fill={p.a} />
-          <rect x="68" y="40" width="64" height="74" rx="12" fill="#faf7f0" stroke={ink} strokeWidth="2.5" />
+          <rect x="68" y="40" width="64" height="74" rx="12" fill={plate} stroke={ink} strokeWidth="2.5" />
           <path d="M70 78h60v24a10 10 0 0 1-10 10H80a10 10 0 0 1-10-10z" fill={p.c} />
           <circle cx="86" cy="62" r="6" fill={p.b} />
           <circle cx="104" cy="58" r="5" fill={p.b} opacity=".85" />
@@ -95,9 +97,9 @@ function Motifs({ motif, p }: { motif: Motif; p: (typeof PALETTES)[number] }) {
     case 'pasta':
       return (
         <g>
-          <ellipse cx="100" cy="84" rx="66" ry="26" fill="#faf7f0" stroke={ink} strokeWidth="2.5" />
+          <ellipse cx="100" cy="84" rx="66" ry="26" fill={plate} stroke={ink} strokeWidth="2.5" />
           <ellipse cx="100" cy="80" rx="42" ry="15" fill={p.c} />
-          <path d="M70 80c8-10 20 6 30-4s22 6 30-4M74 86c10-6 18 4 28-2s18 4 26-2" stroke="#d7b46a" strokeWidth="3" fill="none" strokeLinecap="round" />
+          <path d="M70 80c8-10 20 6 30-4s22 6 30-4M74 86c10-6 18 4 28-2s18 4 26-2" stroke="#c7a85f" strokeWidth="3" fill="none" strokeLinecap="round" />
           <circle cx="96" cy="74" r="6" fill={p.b} />
           <path d="M116 70l6-4M80 72l-5-4" stroke={p.a} strokeWidth="4" strokeLinecap="round" />
         </g>
@@ -105,7 +107,7 @@ function Motifs({ motif, p }: { motif: Motif; p: (typeof PALETTES)[number] }) {
     default:
       return (
         <g>
-          <ellipse cx="100" cy="82" rx="64" ry="28" fill="#faf7f0" stroke={ink} strokeWidth="2.5" />
+          <ellipse cx="100" cy="82" rx="64" ry="28" fill={plate} stroke={ink} strokeWidth="2.5" />
           <ellipse cx="100" cy="82" rx="46" ry="18" fill="none" stroke={ink} strokeOpacity=".2" strokeWidth="2" />
           <ellipse cx="90" cy="80" rx="22" ry="10" fill={p.b} />
           <path d="M112 76c6-6 14-4 18 0-6 4-12 6-18 0z" fill={p.a} />
@@ -129,8 +131,8 @@ export function RecipeArt({
   return (
     <svg className={`recipe-art ${className}`} viewBox="0 0 200 130" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
       <rect width="200" height="130" fill={p.bg} />
-      <circle cx="170" cy="22" r="30" fill={p.c} opacity=".35" />
-      <circle cx="22" cy="118" r="26" fill={p.a} opacity=".18" />
+      <circle cx="170" cy="22" r="30" fill={p.c} opacity=".12" />
+      <circle cx="22" cy="118" r="26" fill={p.a} opacity=".22" />
       <Motifs motif={pickMotif(recipe)} p={p} />
     </svg>
   );

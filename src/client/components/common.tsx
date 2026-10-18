@@ -95,9 +95,9 @@ export function EmptyState({ title, children, art = true }: { title: string; chi
     <div className="empty">
       {art && (
         <svg className="empty-art" viewBox="0 0 120 80" aria-hidden="true">
-          <ellipse cx="60" cy="56" rx="44" ry="10" fill="var(--sage-soft)" />
-          <path d="M22 44h76a38 26 0 0 1-76 0z" fill="var(--paper)" stroke="var(--ink)" strokeWidth="2" />
-          <path d="M48 30c0-6 6-6 6-12M62 30c0-6 6-6 6-12" stroke="var(--sage)" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <ellipse cx="60" cy="56" rx="44" ry="10" fill="var(--accent-dim)" />
+          <path d="M22 44h76a38 26 0 0 1-76 0z" fill="var(--lift)" stroke="var(--subtle)" strokeWidth="2" />
+          <path d="M48 30c0-6 6-6 6-12M62 30c0-6 6-6 6-12" stroke="var(--accent)" strokeWidth="2.5" fill="none" strokeLinecap="round" />
         </svg>
       )}
       <h3 className="empty-title">{title}</h3>

@@ -50,9 +50,9 @@ export function Layout() {
         <div className="site-header-inner">
           <NavLink to="/" className="brand" aria-label="The Cookbook, home">
             <svg viewBox="0 0 64 64" width="30" height="30" aria-hidden="true">
-              <path d="M14 30h36a18 18 0 0 1-36 0z" fill="var(--sage)" />
+              <path d="M14 30h36a18 18 0 0 1-36 0z" fill="var(--accent)" />
               <path d="M10 30h44" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-              <path d="M26 22c0-4 4-4 4-8M34 22c0-4 4-4 4-8" stroke="var(--sage)" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+              <path d="M26 22c0-4 4-4 4-8M34 22c0-4 4-4 4-8" stroke="var(--accent)" strokeWidth="3.5" fill="none" strokeLinecap="round" />
             </svg>
             <span>The Cookbook</span>
           </NavLink>
