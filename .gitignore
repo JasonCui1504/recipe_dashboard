@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+# Local app data (your recipes database and uploaded images)
+data/
+# Temporary test databases and artifacts
+.test-tmp/
+test-results/
+playwright-report/
+.DS_Store
