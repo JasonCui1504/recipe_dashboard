@@ -4,6 +4,7 @@ import { MEAL_SLOTS, type Meal, type Recipe } from '../../shared/schema';
 import { api, ApiError, errorMessage } from '../api';
 import { useConfirm, useRecipes, useToast } from '../state';
 import { capitalize, Modal } from './common';
+import { RecipePicker } from './RecipePicker';
 
 interface Props {
   open: boolean;
@@ -81,19 +82,21 @@ export function AddToPlanDialog({ open, onClose, recipe, date, slot, onAdded }: 
     <Modal open={open} onClose={onClose} title={recipe ? `Plan “${recipe.title}”` : 'Add a meal'}>
       <form className="form" onSubmit={submit}>
         {!recipe && (
-          <label className="field">
-            <span className="label">Recipe</span>
-            <select value={recipeId} onChange={(e) => setRecipeId(e.target.value)} required>
-              <option value="">Choose a recipe…</option>
-              {[...recipes]
-                .sort((a, b) => a.title.localeCompare(b.title))
-                .map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.title}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <div className="field">
+            <span className="label" id="plan-recipe-label">
+              Recipe
+            </span>
+            {chosen ? (
+              <div className="picked-recipe">
+                <span className="picked-title">{chosen.title}</span>
+                <button type="button" className="btn btn-link small" onClick={() => setRecipeId('')}>
+                  Change
+                </button>
+              </div>
+            ) : (
+              <RecipePicker label="Search for a recipe" placeholder="Type a recipe, ingredient or tag…" autoFocus onSelect={(r) => setRecipeId(r.id)} />
+            )}
+          </div>
         )}
         <div className="field-row">
           <label className="field">

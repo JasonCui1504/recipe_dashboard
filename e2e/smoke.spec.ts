@@ -159,14 +159,21 @@ test('home menu calendar: pick lunch & dinner, then plan next week’s groceries
   await page.getByRole('group', { name: 'Which week' }).getByRole('button', { name: 'Next week' }).click();
   await expect(page.getByRole('heading', { name: 'Next week’s menu' })).toBeVisible();
 
+  // Search instead of a dropdown: type part of a name, ingredient or tag, then pick.
   const lunch = page.getByRole('combobox', { name: /^Choose lunch for Monday/ });
-  await lunch.selectOption({ label: 'Tomato and Spinach Pasta' });
+  await lunch.fill('spinach pas');
+  await page.getByRole('option', { name: /Tomato and Spinach Pasta/ }).click();
   await expect(page.locator('.menu-day').first().locator('.menu-meal')).toContainText('Tomato and Spinach Pasta');
-  await page.getByRole('combobox', { name: /^Choose dinner for Tuesday/ }).selectOption({ label: 'Chickpea and Spinach Curry' });
+  // Keyboard: the first match is highlighted, Enter picks it.
+  const tueDinner = page.getByRole('combobox', { name: /^Choose dinner for Tuesday/ });
+  await tueDinner.fill('chickpea');
+  await expect(page.getByRole('option', { name: /Chickpea and Spinach Curry/ })).toHaveAttribute('aria-selected', 'true');
+  await tueDinner.press('Enter');
   await expect(page.locator('.menu-day').nth(1)).toContainText('Chickpea and Spinach Curry');
 
   // Repeating a recipe in the same week asks first
-  await page.getByRole('combobox', { name: /^Choose dinner for Wednesday/ }).selectOption({ label: 'Chickpea and Spinach Curry' });
+  await page.getByRole('combobox', { name: /^Choose dinner for Wednesday/ }).fill('curry');
+  await page.getByRole('option', { name: /Chickpea and Spinach Curry/ }).click();
   await page.getByRole('dialog', { name: 'Repeat this meal?' }).getByRole('button', { name: 'Cancel' }).click();
   await expect(page.locator('.menu-day').nth(2).locator('.menu-meal')).toHaveCount(0);
 
@@ -174,6 +181,18 @@ test('home menu calendar: pick lunch & dinner, then plan next week’s groceries
   await page.reload();
   await page.getByRole('group', { name: 'Which week' }).getByRole('button', { name: 'Next week' }).click();
   await expect(page.locator('.menu-day').first()).toContainText('Tomato and Spinach Pasta');
+
+  // The planner's "Add" dialog uses the same search
+  await page.goto('/planner');
+  await page.getByRole('button', { name: 'Next week' }).click();
+  await page.getByRole('button', { name: /Add a recipe to breakfast on Thursday/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add a meal' });
+  await dialog.getByRole('combobox', { name: 'Search for a recipe' }).fill('oats');
+  await expect(dialog.getByRole('listbox').getByRole('option')).toHaveCount(1);
+  await dialog.getByRole('option', { name: /Overnight Oats/ }).click();
+  await expect(dialog.locator('.picked-recipe')).toContainText('Overnight Oats');
+  await dialog.getByRole('button', { name: 'Add to plan' }).click();
+  await expect(page.locator('.day', { hasText: 'Thursday' }).locator('.meal')).toContainText('Overnight Oats');
 
   // Add spinach to the pantry so the review shows it as already there
   await page.goto('/pantry');

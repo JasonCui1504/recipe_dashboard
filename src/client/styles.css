@@ -1888,6 +1888,114 @@ details summary {
   color: var(--faint);
 }
 
+/* ---------- Recipe search picker ---------- */
+
+.picker {
+  position: relative;
+  min-width: 0;
+}
+.picker-field {
+  position: relative;
+}
+.picker-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  pointer-events: none;
+}
+.picker input {
+  padding-left: 34px;
+}
+.picker-compact input {
+  min-height: 40px;
+  padding: 6px 8px 6px 28px;
+  font-size: 0.85rem;
+  border-style: dashed;
+  background: transparent;
+}
+.picker-compact input:focus {
+  border-style: solid;
+  background: var(--field);
+}
+.picker-compact .picker-icon {
+  left: 9px;
+}
+.picker-list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  width: max(100%, 260px);
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--lift);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.picker-list.picker-right {
+  left: auto;
+  right: 0;
+}
+.picker-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.picker-option.is-active {
+  background: var(--accent-dim);
+}
+.picker-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--prose);
+}
+.picker-fav {
+  color: var(--danger-text);
+  flex-shrink: 0;
+}
+.picker-meta {
+  color: var(--faint);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.picker-empty {
+  padding: 10px;
+  color: var(--faint);
+  font-size: 0.88rem;
+}
+.picked-recipe {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-dim);
+}
+.picked-title {
+  font-weight: 600;
+}
+.menu-adding {
+  margin: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
 /* ---------- Dialogs & toasts ---------- */
 
 .dialog {

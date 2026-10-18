@@ -6,6 +6,7 @@ import { api, ApiError, errorMessage } from '../api';
 import { useConfirm, useLoader, useRecipes, useToast } from '../state';
 import { ErrorState, Loading } from './common';
 import { IconClose } from './Icons';
+import { RecipePicker } from './RecipePicker';
 
 const SLOTS = [
   { id: 'lunch', label: 'Lunch' },
@@ -26,10 +27,6 @@ export function WeekMenu({ weekStart }: { weekStart: string }) {
   const today = toIsoDate(new Date());
 
   const byId = useMemo(() => new Map(recipes.map((r) => [r.id, r])), [recipes]);
-  const sorted = useMemo(() => {
-    const all = [...recipes].sort((a, b) => a.title.localeCompare(b.title));
-    return { favorites: all.filter((r) => r.favorite), others: all.filter((r) => !r.favorite) };
-  }, [recipes]);
 
   const plan = async (date: string, slot: string, recipe: Recipe) => {
     const key = `${date}-${slot}`;
@@ -72,7 +69,7 @@ export function WeekMenu({ weekStart }: { weekStart: string }) {
 
   return (
     <ol className="menu-week">
-      {days.map((day) => (
+      {days.map((day, dayIndex) => (
         <li key={day} className={`menu-day ${day === today ? 'is-today' : ''}`}>
           <h3 className="menu-day-title">
             <span>{formatDay(day, { weekday: 'short' })}</span>
@@ -80,10 +77,9 @@ export function WeekMenu({ weekStart }: { weekStart: string }) {
           </h3>
           {SLOTS.map(({ id: slot, label }) => {
             const planned = (meals.data ?? []).filter((m) => m.date === day && m.slot === slot);
-            const fieldId = `menu-${day}-${slot}`;
             return (
               <div key={slot} className="menu-slot">
-                <span className="menu-slot-label" id={`${fieldId}-label`}>
+                <span className="menu-slot-label">
                   {label}
                 </span>
                 {planned.map((m) => {
@@ -102,37 +98,19 @@ export function WeekMenu({ weekStart }: { weekStart: string }) {
                     </div>
                   );
                 })}
-                {planned.length === 0 && (
-                  <select
-                    id={fieldId}
-                    className="menu-select"
-                    value=""
-                    disabled={busy === `${day}-${slot}` || recipes.length === 0}
-                    aria-label={`Choose ${label.toLowerCase()} for ${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}`}
-                    onChange={(e) => {
-                      const r = byId.get(e.target.value);
-                      if (r) void plan(day, slot, r);
-                    }}
-                  >
-                    <option value="">{busy === `${day}-${slot}` ? 'Adding…' : 'Choose…'}</option>
-                    {sorted.favorites.length > 0 && (
-                      <optgroup label="Favorites">
-                        {sorted.favorites.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.title}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    <optgroup label={sorted.favorites.length ? 'All recipes' : 'Recipes'}>
-                      {sorted.others.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.title}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                )}
+                {planned.length === 0 &&
+                  (busy === `${day}-${slot}` ? (
+                    <p className="muted small menu-adding">Adding…</p>
+                  ) : (
+                    <RecipePicker
+                      compact
+                      alignRight={dayIndex >= 5}
+                      placeholder="Search…"
+                      label={`Choose ${label.toLowerCase()} for ${formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}`}
+                      disabled={recipes.length === 0}
+                      onSelect={(r) => void plan(day, slot, r)}
+                    />
+                  ))}
               </div>
             );
           })}
