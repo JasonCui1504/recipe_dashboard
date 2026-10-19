@@ -229,6 +229,93 @@ describe('shopping list', () => {
   });
 });
 
+describe('stores and per-store shopping lists', () => {
+  it('creates, renames and refuses duplicate store names', () => {
+    const tj = store.createStore({ name: "Trader Joe's" });
+    expect(() => store.createStore({ name: "trader joe's" })).toThrow(expect.objectContaining({ status: 409 }));
+    expect(store.renameStore(tj.id, { name: 'TJ' })).toEqual({ id: tj.id, name: 'TJ' });
+    reopen();
+    expect(store.listStores()).toEqual([{ id: tj.id, name: 'TJ' }]);
+  });
+
+  it('assigns items to stores and keeps the same ingredient separate per store', () => {
+    const costco = store.createStore({ name: 'Costco' });
+    store.addManualShopping({ name: 'eggs', quantity: 12, unit: '', category: '', store: costco.id });
+    store.addManualShopping({ name: 'eggs', quantity: 6, unit: '', category: '', store: '' });
+    const eggs = store.listShopping().filter((i) => i.name === 'eggs');
+    expect(eggs.map((i) => [i.store, i.quantity])).toEqual([
+      [costco.id, 12],
+      ['', 6],
+    ]);
+  });
+
+  it('remembers where you buy an ingredient and uses it for recipes and meal plans', () => {
+    const tj = store.createStore({ name: "Trader Joe's" });
+    const r = store.createRecipe(recipeInput());
+    // Moving an item to a store teaches the app.
+    store.addManualShopping({ name: 'Flour', quantity: 1, unit: 'cup', category: '', store: null });
+    const flour = store.listShopping()[0];
+    expect(flour.store).toBe('');
+    store.updateShoppingItem(flour.id, { ...flour, store: tj.id });
+    store.deleteShoppingItem(flour.id);
+    store.addRecipeToShopping(r.id);
+    const list = store.listShopping();
+    expect(list.find((i) => i.name === 'flour')!.store).toBe(tj.id);
+    expect(list.find((i) => i.name === 'eggs')!.store).toBe('');
+    // "Where I usually buy it" (null) also uses the memory.
+    store.addManualShopping({ name: 'FLOUR', quantity: 1, unit: 'cup', category: '', store: null });
+    expect(store.listShopping().find((i) => i.name === 'flour')!.quantity).toBe(2); // 1 cup from the recipe + 1 cup, same store
+  });
+
+  it('ignores unknown store ids', () => {
+    store.addManualShopping({ name: 'milk', quantity: 1, unit: 'l', category: '', store: 'nope' });
+    expect(store.listShopping()[0].store).toBe('');
+  });
+
+  it('removing a store moves its items to "any store" and forgets it', () => {
+    const tj = store.createStore({ name: "Trader Joe's" });
+    store.addManualShopping({ name: 'lemons', quantity: 3, unit: '', category: '', store: tj.id });
+    expect(store.deleteStore(tj.id)).toEqual({ itemsMoved: 1 });
+    expect(store.listShopping()[0].store).toBe('');
+    expect(store.storeFor('lemons')).toBe('');
+    expect(() => store.deleteStore(tj.id)).toThrow(expect.objectContaining({ status: 404 }));
+  });
+
+  it('keeps stores in backups and remaps copied stores on import', () => {
+    const tj = store.createStore({ name: "Trader Joe's" });
+    store.addManualShopping({ name: 'lemons', quantity: 3, unit: '', category: '', store: tj.id });
+    const backup = backupSchema.parse(JSON.parse(JSON.stringify(store.exportAll())));
+    expect(backup.data.stores).toEqual([tj]);
+
+    const other = makeTempDir();
+    const db2 = openDatabase(join(other.dir, 'cookbook.db'));
+    try {
+      const s2 = new Store(db2);
+      s2.importBackup(backup, 'skip');
+      expect(s2.listStores()).toEqual([tj]);
+      expect(s2.listShopping()[0].store).toBe(tj.id);
+    } finally {
+      db2.close();
+      other.cleanup();
+    }
+
+    // Older backups without stores still import.
+    const { stores: _s, ...withoutStores } = backup.data;
+    expect(backupSchema.parse({ ...backup, data: withoutStores }).data.stores).toEqual([]);
+  });
+});
+
+describe('daily messages', () => {
+  it('keeps one message per date, newest first, two weeks at most', () => {
+    for (let d = 1; d <= 20; d++) store.saveDailyMessage(`2026-10-${String(d).padStart(2, '0')}`, `msg ${d}`);
+    store.saveDailyMessage('2026-10-20', 'replaced');
+    const all = store.dailyMessages();
+    expect(all).toHaveLength(14);
+    expect(all[0]).toEqual({ date: '2026-10-20', text: 'replaced' });
+    expect(all.filter((m) => m.date === '2026-10-20')).toHaveLength(1);
+  });
+});
+
 describe('backup export / import', () => {
   function populated() {
     store.seedOnFirstRun();

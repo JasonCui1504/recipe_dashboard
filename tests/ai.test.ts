@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AiError, draftRecipe, OllamaClient, recommendRecipes, suggestSubstitutions, validateBaseUrl } from '../src/server/ai';
+import { AiError, DAILY_TIPS, draftRecipe, generateDailyMessage, OllamaClient, recommendRecipes, suggestSubstitutions, validateBaseUrl } from '../src/server/ai';
 import { recipeInputSchema } from '../src/shared/schema';
 import { ing, recipe } from './helpers';
 import { startMockOllama, type MockOllama } from './mock-ollama';
@@ -152,5 +152,26 @@ describe('Ollama client against a mock server', () => {
     expect(await code(recommendRecipes(client(), 'soup', [recipe()], []))).toBe('invalid-output');
     expect(await code(recommendRecipes(client(), '   ', [recipe()], []))).toBe('invalid-config');
   });
-});
 
+  it('generates a short daily message with today’s context, and rejects bad ones', async () => {
+    mock.reply({ message: '  "Lemon chicken tonight — and those eggs won’t eat themselves!"  ' });
+    const msg = await generateDailyMessage(client(), {
+      dateLabel: 'Monday, October 19',
+      todaysMeals: ['dinner: Lemon Chicken'],
+      expiringSoon: ['eggs'],
+      recentMessages: ['Yesterday’s note.'],
+    });
+    expect(msg).toBe('Lemon chicken tonight — and those eggs won’t eat themselves!');
+    const prompt = (mock.requests.at(-1)!.body as { messages: Array<{ content: string }> }).messages[1].content;
+    expect(prompt).toContain('Monday, October 19');
+    expect(prompt).toContain('dinner: Lemon Chicken');
+    expect(prompt).toContain('Use soon: eggs');
+    expect(prompt).toContain('Yesterday’s note.');
+
+    mock.reply({ message: 'word '.repeat(60) });
+    expect(await code(generateDailyMessage(client(), { dateLabel: 'x', todaysMeals: [], expiringSoon: [], recentMessages: [] }))).toBe('invalid-output');
+    mock.reply({ note: 'no message' });
+    expect(await code(generateDailyMessage(client(), { dateLabel: 'x', todaysMeals: [], expiringSoon: [], recentMessages: [] }))).toBe('invalid-output');
+    expect(DAILY_TIPS.length).toBeGreaterThanOrEqual(28);
+  });
+});

@@ -113,6 +113,8 @@ export const shoppingInputSchema = z.object({
   unit: trimmed(30),
   category: trimmed(40),
   checked: z.boolean(),
+  /** Store id from the user's store list; '' means any store. */
+  store: z.string().max(64).default(''),
 });
 export type ShoppingInput = z.infer<typeof shoppingInputSchema>;
 export const shoppingItemSchema = shoppingInputSchema.extend({
@@ -122,6 +124,12 @@ export const shoppingItemSchema = shoppingInputSchema.extend({
   updatedAt: z.string(),
 });
 export type ShoppingItem = z.infer<typeof shoppingItemSchema>;
+
+export const storeSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: trimmed(40).min(1, 'Store name is required'),
+});
+export type Store = z.infer<typeof storeSchema>;
 
 export const aiSettingsSchema = z.object({
   enabled: z.boolean(),

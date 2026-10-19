@@ -8,6 +8,8 @@ export interface ShoppingAddition {
   quantity: number | null;
   unit: string;
   category?: string;
+  /** Store id ('' = any store). Items only combine within the same store. */
+  store?: string;
   source: ShoppingSource;
 }
 
@@ -23,7 +25,7 @@ function sameSource(a: ShoppingSource, b: ShoppingSource): boolean {
 /**
  * Decides how an incoming ingredient joins the list. Items combine only when:
  *  - the normalized names are identical (no fuzzy matching), and
- *  - the existing item is not yet checked off, and
+ *  - the existing item is not yet checked off and is for the same store, and
  *  - the units are identical, or the same kind of measure (weight or volume),
  *    in which case the total is converted ("1 cup + 2 tbsp" → "1 1/8 cup"), and
  *  - both quantities are numeric, or both are blank ("salt, to taste").
@@ -44,6 +46,7 @@ export function planShoppingAddition(existing: readonly ShoppingItem[], add: Sho
   const target = existing.find(
     (item) =>
       !item.checked &&
+      (item.store ?? '') === (add.store ?? '') &&
       normalizeIngredientName(item.name) === key &&
       (item.quantity === null && add.quantity === null
         ? normalizeUnit(item.unit) === unit
@@ -65,6 +68,7 @@ export function planShoppingAddition(existing: readonly ShoppingItem[], add: Sho
       unit: add.unit.trim(),
       category: add.category?.trim() || guessCategory(add.name),
       checked: false,
+      store: add.store ?? '',
       sources: [add.source],
     },
   };

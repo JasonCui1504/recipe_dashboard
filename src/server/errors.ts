@@ -14,7 +14,7 @@ export class AppError extends Error {
 
 export const notFound = (what: string) => new AppError(404, `${what} not found.`);
 
-export function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
+export function parseOrThrow<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, value: unknown, what: string): T {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new AppError(400, `Please check the ${what}.`, describeZodError(result.error), 'validation');

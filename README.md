@@ -11,6 +11,7 @@ A dark-green, offline, local-first personal cookbook and kitchen companion. Keep
 - **Pantry**: a simple list of what you have. Add several items at once ("eggs, spinach, rice"); amounts and expiry dates are optional. Tap an item to strike it off when it's finished; it moves to a Finished list with Undo and one-tap Restock. The **What can I cook?** tab explains every match.
 - **Meal Planner**: a week view with breakfast, lunch, dinner and custom meals, per-meal servings, and protection against duplicates and repeats.
 - **Shopping List**: add items yourself, from a recipe, or from the week's meals. Items are grouped by aisle and combined only when that's safe, and checked-off items stay until you clear them (with confirmation).
+- **Stores**: add your stores (Trader Joe's, Costco…) and each one gets its own shopping list tab. Pick a store when adding an item or from the menu next to any item; the app remembers where you buy each ingredient, so recipe and meal-plan items go to the right store automatically. Removing a store moves its items to "Any store".
 - **Backup & restore**: export to a versioned JSON file, then import with a preview and an explicit conflict choice.
 - **Optional local AI**: if you run Ollama, a local model (e.g. Llama 3.1 8B) can suggest substitutions or draft a recipe. It's off by default and never saves anything by itself.
 
@@ -122,6 +123,7 @@ AI is **off by default**. Every feature works without it.
 
 What it does:
 
+- **Sprout**, the little chef on the home page, shows one message a day. With AI on, your local Llama writes it once a day (it can mention today's planned meals or pantry items expiring soon) and it's saved, so it stays the same all day. With AI off, or if the model doesn't answer within 30 seconds, Sprout shows a built-in tip of the day. Click Sprout to say hi.
 - **Ask Llama** in the home-page search: describe what you feel like ("something cozy with chicken under 30 minutes", "use up my spinach") and it picks up to 5 of *your own* recipes, each with a short reason. It sees recipe titles, times, tags and main ingredients (favorites first, up to 60 recipes) plus the names of what's in your pantry. Any recipe it makes up is dropped, and the normal instant search keeps working underneath.
 - **Substitute?** buttons on recipe ingredients show up to 3 suggestions, clearly labelled as unverified AI output. Your recipe isn't changed.
 - **Draft with AI** on a new recipe fills the form with a draft for you to review. Nothing is saved until you press **Save**, and leaving the page asks before discarding it.

@@ -369,3 +369,77 @@ export async function recommendRecipes(
   }
   return { recommendations, note: out.note };
 }
+
+// ---------------------------------------------------------------------------
+// Daily message for the home-page kitchen companion
+// ---------------------------------------------------------------------------
+
+export interface DailyContext {
+  /** e.g. "Monday, October 19" */
+  dateLabel: string;
+  todaysMeals: string[];
+  expiringSoon: string[];
+  recentMessages: string[];
+}
+
+const dailyOutputSchema = z.object({
+  message: z
+    .string()
+    .transform((m) => m.replace(/\s+/g, ' ').trim().replace(/^["'“”]+|["'“”]+$/g, ''))
+    .pipe(z.string().min(3).max(220)),
+});
+
+/** One short, friendly message for today. Treated as plain text, never markup. */
+export async function generateDailyMessage(client: OllamaClient, ctx: DailyContext): Promise<string> {
+  const system =
+    'You are Sprout, a cheerful little chef who lives in the user’s personal cookbook app. ' +
+    'Write ONE short message for today: warm, playful and a little practical, at most 25 words. ' +
+    'You may mention today’s planned meals or nudge the user to use ingredients that expire soon. ' +
+    'No emojis, no hashtags, no health or nutrition claims. Reply with JSON only: {"message":"..."}';
+  const lines = [`Today is ${ctx.dateLabel}.`];
+  if (ctx.todaysMeals.length) lines.push(`Planned today: ${ctx.todaysMeals.slice(0, 4).join('; ')}.`);
+  if (ctx.expiringSoon.length) lines.push(`Use soon: ${ctx.expiringSoon.slice(0, 5).join(', ')}.`);
+  if (ctx.recentMessages.length) lines.push(`Say something different from these earlier messages: ${ctx.recentMessages.slice(0, 5).map((m) => `“${m}”`).join(' ')}`);
+  const out = await client.chatJson(system, lines.join('\n'), dailyOutputSchema, {
+    type: 'object',
+    properties: { message: { type: 'string' } },
+    required: ['message'],
+  });
+  if (out.message.split(' ').length > 40) throw new AiError('invalid-output', 'The model’s message was too long.');
+  return out.message;
+}
+
+/** Original fallback notes, used when the local model is off or unavailable. */
+export const DAILY_TIPS = [
+  'Taste as you go — a pinch of salt at the end can wake up a whole pot.',
+  'Let the pan get properly hot before the food goes in. Patience is a seasoning.',
+  'Leftover rice? Tomorrow it wants to be fried rice.',
+  'Read the whole recipe once before you start. Future you says thanks.',
+  'A squeeze of lemon fixes more dishes than you’d think.',
+  'Cook once, eat twice: double tonight’s dinner and lunch is sorted.',
+  'Herbs looking tired? Blitz them with oil and freeze in an ice-cube tray.',
+  'Rest meat for a few minutes after cooking; the juices will stay put.',
+  'Crowded pans steam instead of sear. Give your food some personal space.',
+  'Check the pantry before the shop — it saves money and fridge space.',
+  'Soup is the kindest home for wilting vegetables.',
+  'Sharp knives are safer knives. Today might be a good day to hone.',
+  'Toast your spices in a dry pan for thirty seconds. Smell that?',
+  'Pasta water is liquid gold: save a cup before you drain.',
+  'Plan two easy dinners this week for the nights you won’t feel like cooking.',
+  'Salt your pasta water like you mean it.',
+  'Eggs, rice and whatever greens you have make a very respectable dinner.',
+  'A clean-as-you-go kitchen makes the last step the best one.',
+  'Freeze bread you won’t finish; toast it straight from frozen.',
+  'Add acid, not just salt, when a dish tastes flat.',
+  'Write down what you changed when a recipe goes well. That’s how favorites are born.',
+  'Bananas getting spotty? That’s baking season.',
+  'Use the oldest things in the fridge first — first in, first out.',
+  'One-pot dinners mean one pot to wash. Just saying.',
+  'A little butter at the end makes a pan sauce glossy.',
+  'Keep a bag in the freezer for veggie scraps; it becomes stock later.',
+  'Shop with a list, not an appetite.',
+  'Room-temperature eggs whisk lighter and fluffier.',
+  'If it smells done, check it. Your nose is a timer too.',
+  'Cooking for one? Freeze single portions for busy nights.',
+  'Something simple, made with care, is still a great dinner.',
+];

@@ -215,6 +215,39 @@ describe('optional AI through the API', () => {
     expect(JSON.stringify((await call('GET', '/api/backup/export')).json.data)).toBe(before);
   });
 
+  it('daily message: built-in tip when AI is off, Llama once per day when on', async () => {
+    const off = await call('GET', '/api/daily-message');
+    expect(off.json).toMatchObject({ source: 'tip' });
+    expect(typeof off.json.text).toBe('string');
+    const before = mock.requests.length;
+    expect(mock.requests.length).toBe(before);
+
+    await call('PUT', '/api/settings/ai', { enabled: true, baseUrl: mock.url, model: 'llama3.1:8b' });
+    mock.reply('not json');
+    const failed = await call('GET', '/api/daily-message');
+    expect(failed.json).toMatchObject({ source: 'tip' });
+    expect(failed.json.note).toMatch(/valid JSON/);
+
+    mock.reply({ message: 'Good morning! Soup weather, maybe?' });
+    const first = await call('GET', '/api/daily-message');
+    expect(first.json).toMatchObject({ source: 'llama', text: 'Good morning! Soup weather, maybe?' });
+    const calls = mock.requests.length;
+    mock.reply({ message: 'A different message' });
+    const again = await call('GET', '/api/daily-message');
+    expect(again.json.text).toBe('Good morning! Soup weather, maybe?'); // cached for the day
+    expect(mock.requests.length).toBe(calls);
+  });
+
+  it('manages stores and needs confirmation to remove one', async () => {
+    const created = await call('POST', '/api/stores', { name: 'Costco' });
+    expect(created.status).toBe(200);
+    expect((await call('POST', '/api/stores', { name: 'costco' })).status).toBe(409);
+    expect((await call('PUT', `/api/stores/${created.json.id}`, { name: 'Costco Wholesale' })).json.name).toBe('Costco Wholesale');
+    expect((await call('DELETE', `/api/stores/${created.json.id}`)).status).toBe(428);
+    expect((await call('DELETE', `/api/stores/${created.json.id}?confirm=true`)).json).toEqual({ itemsMoved: 0 });
+    expect((await call('GET', '/api/stores')).json).toEqual([]);
+  });
+
   it('surfaces malformed model output as a clear error', async () => {
     await call('PUT', '/api/settings/ai', { enabled: true, baseUrl: mock.url, model: 'llama3.1:8b' });
     mock.reply('not json at all');

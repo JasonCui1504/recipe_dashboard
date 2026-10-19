@@ -7,6 +7,7 @@ import { collectTags, filterRecipes, matchesQuickFilter, QUICK_FILTERS, type Qui
 import { api, errorMessage } from '../api';
 import { EmptyState, ErrorState, Loading, RecipeCard } from '../components/common';
 import { IconCart, IconLeaf, IconPlus, IconSearch, IconSpark } from '../components/Icons';
+import { KitchenBuddy } from '../components/KitchenBuddy';
 import { WeekMenu } from '../components/WeekMenu';
 import { useDocumentTitle, useLoader, useRecipes, useToast } from '../state';
 
@@ -102,6 +103,7 @@ export function Discover() {
   return (
     <div className="page discover">
       <section className="hero" aria-labelledby="hero-title">
+        <div className="hero-main">
         <p className="kicker">Your kitchen companion</p>
         <h1 id="hero-title" className="hero-title">
           What sounds good?
@@ -158,6 +160,8 @@ export function Discover() {
             <IconLeaf size={16} /> Use My Pantry
           </button>
         </div>
+        </div>
+        <KitchenBuddy />
       </section>
 
       {loading && recipes.length === 0 ? (

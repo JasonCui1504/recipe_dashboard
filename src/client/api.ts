@@ -1,5 +1,5 @@
 import type { ConflictStrategy, ImportPreview, ImportResult } from '../shared/backup';
-import type { AiSettings, Meal, PantryInput, PantryItem, Recipe, RecipeInput, ShoppingInput, ShoppingItem } from '../shared/schema';
+import type { AiSettings, Meal, PantryInput, PantryItem, Recipe, RecipeInput, ShoppingInput, ShoppingItem, Store } from '../shared/schema';
 
 /** Thin client for the local API. Every request goes to this same origin. */
 
@@ -69,7 +69,8 @@ export const api = {
   },
   shopping: {
     list: () => request<ShoppingItem[]>('GET', '/api/shopping'),
-    add: (item: { name: string; quantity: number | null; unit: string; category: string }) =>
+    /** `store: null` = where you usually buy it; '' = any store. */
+    add: (item: { name: string; quantity: number | null; unit: string; category: string; store: string | null }) =>
       request<ShoppingAddSummary>('POST', '/api/shopping', item),
     fromRecipe: (recipeId: string, servings: number, skipStaples: boolean, only?: number[]) =>
       request<ShoppingAddSummary>('POST', '/api/shopping/from-recipe', { recipeId, servings, skipStaples, only }),
@@ -78,6 +79,13 @@ export const api = {
     update: (id: string, input: ShoppingInput) => request<ShoppingItem>('PUT', `/api/shopping/${encodeURIComponent(id)}`, input),
     remove: (id: string) => request<{ ok: true }>('DELETE', `/api/shopping/${encodeURIComponent(id)}`),
     clearChecked: () => request<{ removed: number }>('POST', '/api/shopping/clear-checked', { confirm: true }),
+  },
+  dailyMessage: () => request<{ date: string; text: string; source: 'llama' | 'tip'; note?: string }>('GET', '/api/daily-message'),
+  stores: {
+    list: () => request<Store[]>('GET', '/api/stores'),
+    create: (name: string) => request<Store>('POST', '/api/stores', { name }),
+    rename: (id: string, name: string) => request<Store>('PUT', `/api/stores/${encodeURIComponent(id)}`, { name }),
+    remove: (id: string) => request<{ itemsMoved: number }>('DELETE', `/api/stores/${encodeURIComponent(id)}?confirm=true`),
   },
   backup: {
     exportUrl: '/api/backup/export',

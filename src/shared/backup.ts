@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { mealSchema, pantryItemSchema, recipeSchema, shoppingItemSchema } from './schema';
+import { mealSchema, pantryItemSchema, recipeSchema, shoppingItemSchema, storeSchema } from './schema';
 
 export const BACKUP_FORMAT = 'the-cookbook-backup';
 export const BACKUP_VERSION = 1;
@@ -10,7 +10,7 @@ export const BACKUP_VERSION = 1;
  *   "format": "the-cookbook-backup",
  *   "version": 1,
  *   "exportedAt": "2026-01-01T12:00:00.000Z",
- *   "data": { "recipes": [...], "pantry": [...], "mealPlan": [...], "shopping": [...] }
+ *   "data": { "recipes": [...], "pantry": [...], "mealPlan": [...], "shopping": [...], "stores": [...] }
  * }
  * Uploaded recipe photos are referenced by path but not embedded.
  */
@@ -23,6 +23,7 @@ export const backupSchema = z.object({
     pantry: z.array(pantryItemSchema).max(5000).default([]),
     mealPlan: z.array(mealSchema).max(20000).default([]),
     shopping: z.array(shoppingItemSchema).max(5000).default([]),
+    stores: z.array(storeSchema).max(200).default([]),
   }),
 });
 export type Backup = z.infer<typeof backupSchema>;

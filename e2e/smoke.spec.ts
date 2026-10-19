@@ -232,6 +232,52 @@ test('home menu calendar: pick lunch & dinner, then plan next week’s groceries
   await expect(page.locator('.grocery-row', { hasText: 'crushed tomatoes' })).toContainText('Already on your list');
 });
 
+test('shopping lists per store', async ({ page }) => {
+  await page.goto('/shopping');
+  await page.getByRole('button', { name: /Add your stores|Manage stores/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Your stores' });
+  for (const name of ['Corner Market', 'Bulk Barn']) {
+    await dialog.getByLabel('New store name').fill(name);
+    await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+    await expect(dialog.getByRole('textbox', { name: `Name of ${name}` })).toBeVisible();
+  }
+  await dialog.getByRole('button', { name: 'Done' }).click();
+
+  // A store's own list: items added there belong to it.
+  const tabs = page.getByRole('group', { name: 'Lists by store' });
+  await tabs.getByRole('button', { name: /Corner Market/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Corner Market' })).toBeVisible();
+  await page.getByLabel('Item *').fill('Basil');
+  await page.getByRole('button', { name: 'Add to list' }).click();
+  await expect(page.locator('.shopping-row', { hasText: 'Basil' })).toBeVisible();
+
+  // Move an item from "All" to another store with its store menu.
+  await tabs.getByRole('button', { name: /^All/ }).click();
+  await page.getByLabel('Item *').fill('Oat milk');
+  await page.getByRole('button', { name: 'Add to list' }).click();
+  await page.getByLabel('Store for Oat milk').selectOption({ label: 'Bulk Barn' });
+  await tabs.getByRole('button', { name: /Bulk Barn/ }).click();
+  await expect(page.locator('.shopping-row', { hasText: 'Oat milk' })).toBeVisible();
+  await expect(page.locator('.shopping-row', { hasText: 'Basil' })).toHaveCount(0);
+
+  // It's remembered: adding oat milk again with "Where I usually buy it" goes to Bulk Barn.
+  await tabs.getByRole('button', { name: /^All/ }).click();
+  await page.getByLabel('Store for Oat milk').waitFor();
+  await page.locator('.shopping-row', { hasText: 'Oat milk' }).getByRole('checkbox').check();
+  await page.getByLabel('Item *').fill('oat milk');
+  await page.getByRole('button', { name: 'Add to list' }).click();
+  await expect(page.getByLabel('Store for oat milk')).toHaveValue(/.+/);
+
+  // Removing a store moves its items to "Any store".
+  await page.getByRole('button', { name: 'Manage stores' }).click();
+  await dialog.getByRole('button', { name: 'Remove Corner Market' }).click();
+  await page.getByRole('dialog', { name: 'Remove Corner Market?' }).getByRole('button', { name: 'Remove store' }).click();
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(tabs.getByRole('button', { name: /Corner Market/ })).toHaveCount(0);
+  await tabs.getByRole('button', { name: /Any store/ }).click();
+  await expect(page.locator('.shopping-row', { hasText: 'Basil' })).toBeVisible();
+});
+
 test('create, edit with unsaved-change guard, and delete a recipe', async ({ page }) => {
   await page.goto('/recipes/new');
   await page.getByLabel('Title *').fill('E2E Garlic Toast');
@@ -359,6 +405,9 @@ test('AI is off by default and the app works without it', async ({ page }) => {
   await page.goto('/recipes/new?ai=1');
   await expect(page.getByText('AI drafting is turned off')).toBeVisible();
   await page.goto('/');
+  const buddy = page.getByRole('complementary', { name: 'Sprout’s message for today' });
+  await expect(buddy).toContainText('Tip of the day', { ignoreCase: true });
+  await buddy.getByRole('button', { name: 'Say hi to Sprout' }).click();
   await expect(page.getByRole('button', { name: 'Ask Llama' })).toHaveCount(0);
   await page.getByRole('searchbox', { name: 'Search recipes' }).fill('something light for lunch');
   await expect(page.getByText('Turn on AI in')).toBeVisible();
@@ -375,6 +424,12 @@ test('optional AI with a mock local model: suggestions are previews, nothing sav
     await page.getByLabel('Ollama address').fill(mock.url);
     await page.getByRole('button', { name: 'Save & test connection' }).click();
     await expect(page.getByText('Connected. Model “llama3.1:8b” is installed.')).toBeVisible();
+
+    // Sprout's daily note comes from the model (once a day, then saved)
+    mock.reply({ message: 'Rainy Monday? Perfect excuse for curry.' });
+    await page.goto('/');
+    await expect(page.getByRole('complementary', { name: 'Sprout’s message for today' })).toContainText('Rainy Monday? Perfect excuse for curry.');
+    await expect(page.getByRole('complementary', { name: 'Sprout’s message for today' })).toContainText('from your Llama', { ignoreCase: true });
 
     const before = await (await request.get('/api/backup/export')).json();
 

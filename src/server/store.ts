@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import {
@@ -20,6 +21,7 @@ import {
   recipeSchema,
   shoppingInputSchema,
   shoppingItemSchema,
+  storeSchema,
   type AiSettings,
   type Meal,
   type MealInput,
@@ -29,6 +31,7 @@ import {
   type RecipeInput,
   type ShoppingInput,
   type ShoppingItem,
+  type Store as GroceryStore,
 } from '../shared/schema';
 import { normalizeIngredientName } from '../shared/ingredients';
 import { planShoppingAddition, type ShoppingAddition } from '../shared/shopping';
@@ -325,7 +328,9 @@ export class Store {
   addShopping(additions: ShoppingAddition[]): ShoppingAddSummary {
     return transaction(this.db, () => {
       const summary: ShoppingAddSummary = { added: 0, merged: 0, skipped: 0 };
-      for (const add of additions) {
+      for (const addition of additions) {
+        // No store given: use the store this ingredient was last assigned to.
+        const add = addition.store === undefined ? { ...addition, store: this.storeFor(addition.name) } : addition;
         const existing = this.listShopping();
         const plan = planShoppingAddition(existing, add);
         const ts = now();
@@ -344,10 +349,21 @@ export class Store {
     });
   }
 
+  /**
+   * Adds an item typed in by the user. `store: null` means "where I usually buy
+   * it" (the remembered store); a store id or '' (any store) is used as given,
+   * and a chosen store is remembered for next time.
+   */
   addManualShopping(raw: unknown): ShoppingAddSummary {
-    const input = parseOrThrow(shoppingInputSchema.omit({ checked: true }), raw, 'shopping item');
+    const input = parseOrThrow(
+      shoppingInputSchema.omit({ checked: true, store: true }).extend({ store: z.string().max(64).nullable().default(null) }),
+      raw,
+      'shopping item',
+    );
+    const store = input.store === null ? undefined : this.validStore(input.store);
+    if (store) this.rememberStore(input.name, store);
     return this.addShopping([
-      { ...input, source: { kind: 'manual', recipeId: null, mealId: null, label: 'Added by you' } },
+      { ...input, store, source: { kind: 'manual', recipeId: null, mealId: null, label: 'Added by you' } },
     ]);
   }
 
@@ -401,7 +417,9 @@ export class Store {
 
   updateShoppingItem(id: string, raw: unknown): ShoppingItem {
     const existing = this.getShoppingItem(id);
-    const input: ShoppingInput = parseOrThrow(shoppingInputSchema, raw, 'shopping item');
+    const parsed: ShoppingInput = parseOrThrow(shoppingInputSchema, raw, 'shopping item');
+    const input = { ...parsed, store: this.validStore(parsed.store) };
+    if (input.store !== (existing.store ?? '')) this.rememberStore(input.name, input.store);
     const item = { ...existing, ...input, updatedAt: now() };
     this.writeShopping(item, false);
     return item;
@@ -450,6 +468,102 @@ export class Store {
     return settings;
   }
 
+  // ---------- daily message ----------
+
+  /** Saved daily messages, newest first (kept for two weeks). */
+  dailyMessages(): Array<{ date: string; text: string }> {
+    const raw = this.getSetting('dailyMessages');
+    const parsed = raw ? z.array(z.object({ date: z.string(), text: z.string() })).safeParse(JSON.parse(raw)) : null;
+    return parsed?.success ? parsed.data : [];
+  }
+
+  saveDailyMessage(date: string, text: string): void {
+    const rest = this.dailyMessages().filter((m) => m.date !== date);
+    this.setSetting('dailyMessages', JSON.stringify([{ date, text }, ...rest].slice(0, 14)));
+  }
+
+  // ---------- stores ----------
+
+  listStores(): GroceryStore[] {
+    const raw = this.getSetting('stores');
+    if (!raw) return [];
+    const parsed = z.array(storeSchema).safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : [];
+  }
+
+  private saveStores(stores: GroceryStore[]): void {
+    this.setSetting('stores', JSON.stringify(stores));
+  }
+
+  createStore(raw: unknown): GroceryStore {
+    const { name } = parseOrThrow(storeSchema.pick({ name: true }), raw, 'store');
+    const stores = this.listStores();
+    if (stores.some((st) => st.name.toLowerCase() === name.toLowerCase())) {
+      throw new AppError(409, `You already have a store called “${name}”.`, [], 'duplicate');
+    }
+    if (stores.length >= 50) throw new AppError(400, 'That’s a lot of stores — remove one first.');
+    const store = { id: randomUUID(), name };
+    this.saveStores([...stores, store]);
+    return store;
+  }
+
+  renameStore(id: string, raw: unknown): GroceryStore {
+    const { name } = parseOrThrow(storeSchema.pick({ name: true }), raw, 'store');
+    const stores = this.listStores();
+    if (!stores.some((st) => st.id === id)) throw notFound('Store');
+    if (stores.some((st) => st.id !== id && st.name.toLowerCase() === name.toLowerCase())) {
+      throw new AppError(409, `You already have a store called “${name}”.`, [], 'duplicate');
+    }
+    this.saveStores(stores.map((st) => (st.id === id ? { ...st, name } : st)));
+    return { id, name };
+  }
+
+  /** Removes a store; its items move to "any store" and remembered choices are forgotten. */
+  deleteStore(id: string): { itemsMoved: number } {
+    return transaction(this.db, () => {
+      const stores = this.listStores();
+      if (!stores.some((st) => st.id === id)) throw notFound('Store');
+      this.saveStores(stores.filter((st) => st.id !== id));
+      let itemsMoved = 0;
+      for (const item of this.listShopping()) {
+        if (item.store === id) {
+          this.writeShopping({ ...item, store: '', updatedAt: now() }, false);
+          itemsMoved += 1;
+        }
+      }
+      const memory = this.storeMemory();
+      for (const [k, v] of Object.entries(memory)) if (v === id) delete memory[k];
+      this.setSetting('storeMemory', JSON.stringify(memory));
+      return { itemsMoved };
+    });
+  }
+
+  /** A known store id, or '' for anything else. */
+  private validStore(id: string): string {
+    return id && this.listStores().some((st) => st.id === id) ? id : '';
+  }
+
+  private storeMemory(): Record<string, string> {
+    const raw = this.getSetting('storeMemory');
+    const parsed = raw ? z.record(z.string()).safeParse(JSON.parse(raw)) : null;
+    return parsed?.success ? parsed.data : {};
+  }
+
+  /** Remembers which store an ingredient is bought at ('' forgets it). */
+  private rememberStore(name: string, storeId: string): void {
+    const key = normalizeIngredientName(name);
+    if (!key) return;
+    const memory = this.storeMemory();
+    if (storeId) memory[key] = storeId;
+    else delete memory[key];
+    this.setSetting('storeMemory', JSON.stringify(memory));
+  }
+
+  /** The store this ingredient was last assigned to, if that store still exists. */
+  storeFor(name: string): string {
+    return this.validStore(this.storeMemory()[normalizeIngredientName(name)] ?? '');
+  }
+
   // ---------- backup ----------
 
   exportAll(): Backup {
@@ -463,6 +577,7 @@ export class Store {
         pantry: this.listPantry(),
         mealPlan: mealRows.map(mealFromRow),
         shopping: this.listShopping(),
+        stores: this.listStores(),
       },
     };
   }
@@ -475,12 +590,13 @@ export class Store {
       pantry: new Map(all.pantry.map((p) => [p.id, { label: p.name, json: strip(p) }])),
       mealPlan: new Map(all.mealPlan.map((m) => [m.id, { label: `${m.date} ${m.slot}`, json: strip(m) }])),
       shopping: new Map(all.shopping.map((s) => [s.id, { label: s.name, json: strip(s) }])),
+      stores: new Map(all.stores.map((s) => [s.id, { label: s.name, json: strip(s) }])),
     };
   }
 
   previewImport(backup: Backup): ImportPreview {
     const existing = this.existingById();
-    const labels = { recipes: 'Recipes', pantry: 'Pantry items', mealPlan: 'Planned meals', shopping: 'Shopping items' } as const;
+    const labels = { recipes: 'Recipes', pantry: 'Pantry items', mealPlan: 'Planned meals', shopping: 'Shopping items', stores: 'Stores' } as const;
     const labelOf = (key: keyof Backup['data'], x: Record<string, unknown>) =>
       String(key === 'recipes' ? x.title : key === 'mealPlan' ? `${x.date} ${x.slot}` : x.name);
     const sections = (Object.keys(labels) as Array<keyof Backup['data']>).map((key) => {
@@ -551,8 +667,38 @@ export class Store {
           } else result.skipped += 1;
         }
       };
+      // Stores before shopping items, so copied stores can be remapped.
+      const storeIdMap = new Map<string, string>();
+      let stores = this.listStores();
+      for (const store of backup.data.stores) {
+        const d = decide('stores', store.id);
+        const nameTaken = (name: string, exceptId?: string) =>
+          stores.some((st) => st.id !== exceptId && st.name.toLowerCase() === name.toLowerCase());
+        if (d === 'insert' && !nameTaken(store.name)) {
+          stores = [...stores, store];
+          result.added += 1;
+        } else if (d === 'insert') {
+          // Same name, different id: reuse the store you already have.
+          storeIdMap.set(store.id, stores.find((st) => st.name.toLowerCase() === store.name.toLowerCase())!.id);
+          result.skipped += 1;
+        } else if (d === 'replace' && !nameTaken(store.name, store.id)) {
+          stores = stores.map((st) => (st.id === store.id ? store : st));
+          result.replaced += 1;
+        } else if (d === 'copy') {
+          const copy = { id: randomUUID(), name: `${store.name} (imported)`.slice(0, 40) };
+          storeIdMap.set(store.id, copy.id);
+          stores = [...stores, copy];
+          result.copied += 1;
+        } else result.skipped += 1;
+      }
+      this.saveStores(stores);
+
       simple('pantry', 'pantry_items', backup.data.pantry);
-      simple('shopping', 'shopping_items', backup.data.shopping);
+      simple(
+        'shopping',
+        'shopping_items',
+        backup.data.shopping.map((item) => ({ ...item, store: storeIdMap.get(item.store) ?? item.store })),
+      );
 
       for (const meal of backup.data.mealPlan) {
         const recipeId = recipeIdMap.get(meal.recipeId) ?? meal.recipeId;

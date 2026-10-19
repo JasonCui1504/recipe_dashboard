@@ -45,7 +45,7 @@ describe('combining with conversion', () => {
   const manual: ShoppingSource = { kind: 'manual', recipeId: null, mealId: null, label: '' };
   it('merges compatible units on the shopping list', () => {
     const plan = planShoppingAddition(
-      [{ id: 'a', name: 'soy sauce', quantity: 2, unit: 'tbsp', category: '', checked: false, sources: [manual], createdAt: '', updatedAt: '' }],
+      [{ id: 'a', name: 'soy sauce', quantity: 2, unit: 'tbsp', category: '', checked: false, store: '', sources: [manual], createdAt: '', updatedAt: '' }],
       { name: 'Soy sauce', quantity: 0.25, unit: 'cup', source: manual },
     );
     expect(plan).toMatchObject({ action: 'merge', quantity: 0.375, unit: 'cup' });

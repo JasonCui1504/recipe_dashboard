@@ -12,6 +12,7 @@ const item = (name: string, quantity: number | null, unit: string, extra: Partia
   unit,
   category: 'Other',
   checked: false,
+  store: '',
   sources: [manual],
   createdAt: '',
   updatedAt: '',
@@ -31,6 +32,15 @@ describe('planShoppingAddition', () => {
     const plan = planShoppingAddition([item('salt', 1, 'tsp')], { name: 'garlic salt', quantity: 1, unit: 'tsp', source: manual });
     expect(plan.action).toBe('create');
   });
+  it('keeps the same ingredient separate for different stores', () => {
+    const plan = planShoppingAddition([item('eggs', 6, '', { store: 'costco' })], { name: 'eggs', quantity: 2, unit: '', store: '', source: manual });
+    expect(plan).toMatchObject({ action: 'create', item: { store: '' } });
+    expect(planShoppingAddition([item('eggs', 6, '', { store: 'costco' })], { name: 'eggs', quantity: 2, unit: '', store: 'costco', source: manual })).toMatchObject({
+      action: 'merge',
+      quantity: 8,
+    });
+  });
+
   it('does not merge into checked-off items', () => {
     const plan = planShoppingAddition([item('eggs', 6, '', { checked: true })], { name: 'eggs', quantity: 2, unit: '', source: manual });
     expect(plan.action).toBe('create');
