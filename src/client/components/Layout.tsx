@@ -18,12 +18,21 @@ function IconGear({ size = 20 }: { size?: number }) {
   );
 }
 
+function IconChart({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+    </svg>
+  );
+}
+
 const NAV = [
   { to: '/', label: 'Discover', icon: IconSearch, end: true },
   { to: '/recipes', label: 'My Recipes', icon: IconBook, end: false },
   { to: '/planner', label: 'Meal Planner', icon: IconCalendar, end: false },
   { to: '/shopping', label: 'Shopping List', icon: IconCart, end: false },
   { to: '/pantry', label: 'Pantry', icon: IconLeaf, end: false },
+  { to: '/insights', label: 'Insights', icon: IconChart, end: false },
 ];
 
 export function Layout() {

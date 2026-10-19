@@ -278,6 +278,19 @@ test('shopping lists per store', async ({ page }) => {
   await expect(page.locator('.shopping-row', { hasText: 'Basil' })).toBeVisible();
 });
 
+test('insights page', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Insights' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Insights' })).toBeVisible();
+  // Earlier tests planned today's dinner, which counts as cooked.
+  await expect(page.locator('.stat', { hasText: 'Meals planned' }).locator('.stat-value')).not.toHaveText('0');
+  await expect(page.getByRole('region', { name: 'Most cooked recipes' })).toContainText('Salmon Rice Bowl');
+  await expect(page.getByRole('region', { name: 'Most veggie-packed recipes' }).locator('.bar-row').first()).toBeVisible();
+  await page.getByRole('group', { name: 'Time period' }).getByRole('button', { name: 'All time' }).click();
+  await expect(page.getByRole('group', { name: 'Time period' }).getByRole('button', { name: 'All time' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('region', { name: 'Pantry & food waste' })).toBeVisible();
+});
+
 test('create, edit with unsaved-change guard, and delete a recipe', async ({ page }) => {
   await page.goto('/recipes/new');
   await page.getByLabel('Title *').fill('E2E Garlic Toast');

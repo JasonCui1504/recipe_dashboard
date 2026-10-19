@@ -6,6 +6,7 @@ import { Layout } from './components/Layout';
 import { CookingMode } from './pages/CookingMode';
 import { Discover } from './pages/Discover';
 import { GroceryPlan } from './pages/GroceryPlan';
+import { Insights } from './pages/Insights';
 import { Library } from './pages/Library';
 import { Pantry } from './pages/Pantry';
 import { Planner } from './pages/Planner';
@@ -61,6 +62,7 @@ const router = createBrowserRouter([
           { path: '/shopping', element: <Shopping /> },
           { path: '/shopping/plan', element: <GroceryPlan /> },
           { path: '/pantry', element: <Pantry /> },
+          { path: '/insights', element: <Insights /> },
           { path: '/settings', element: <Settings /> },
           { path: '*', element: <NotFound /> },
         ],

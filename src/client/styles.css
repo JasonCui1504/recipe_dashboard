@@ -1,6 +1,9 @@
 /* The Cookbook — warm editorial styles. Local system fonts only; no external assets. */
 
 :root {
+  /* Chart marks: brand green with enough chroma to read as color on the dark
+     surface (checked with the dataviz palette validator, dark mode). */
+  --chart: #4f9a64;
   /* Palette shared with jascui.com (photography-site-next/app/globals.css). */
   --canvas: #0d1110;
   --surface: #141c17;
@@ -2038,6 +2041,209 @@ details summary {
   color: var(--faint);
 }
 
+/* ---------- Insights ---------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 12px 0 20px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.stat dt {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.stat dd {
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+}
+.stat-value {
+  font-size: 2rem;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  color: var(--prose);
+  line-height: 1.1;
+}
+.stat-sub {
+  font-size: 0.8rem;
+  color: var(--subtle);
+  margin-top: 2px;
+}
+.stats-small {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 4px 0 12px;
+}
+.stats-small .stat {
+  background: var(--lift);
+  padding: 10px 12px;
+}
+.stats-small .stat-value {
+  font-size: 1.5rem;
+}
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.insight-card {
+  margin: 0;
+}
+.insight-card.is-wide {
+  grid-column: 1 / -1;
+}
+.insight-note {
+  margin: -6px 0 12px;
+}
+.bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bar-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+}
+.bar-row:hover,
+.bar-row:focus-visible {
+  background: var(--lift);
+}
+.bar-label {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-label a {
+  color: var(--prose);
+  text-decoration: none;
+}
+.bar-label a:hover {
+  text-decoration: underline;
+}
+.bar-track {
+  height: 10px;
+}
+.bar-fill {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  background: var(--chart);
+  border-radius: 0 4px 4px 0;
+}
+.bar-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.88rem;
+  color: var(--subtle);
+}
+/* Hover/focus detail for bars and week columns */
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  border: 1px solid var(--line-strong);
+  color: var(--prose);
+  font-size: 0.8rem;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+}
+.week-chart {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  height: 180px;
+  padding-top: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.week-col {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.week-col:hover .week-bar {
+  filter: brightness(1.15);
+}
+.week-bar {
+  width: min(100%, 36px);
+  min-height: 2px;
+  background: var(--chart);
+  border-radius: 4px 4px 0 0;
+}
+.week-count {
+  font-size: 0.78rem;
+  color: var(--subtle);
+  font-variant-numeric: tabular-nums;
+}
+.week-label {
+  position: absolute;
+  bottom: -22px;
+  font-size: 0.72rem;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.insight-card.is-wide {
+  padding-bottom: 34px;
+}
+.difficulty-mix {
+  display: flex;
+  gap: 18px;
+  margin: 12px 0 0;
+  font-size: 0.88rem;
+  color: var(--subtle);
+}
+.difficulty-mix strong {
+  color: var(--prose);
+  margin-left: 4px;
+}
+.two-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.plain-list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.92rem;
+}
+.plain-list a {
+  color: var(--prose);
+}
+
 /* ---------- Stores on the shopping list ---------- */
 
 .store-tabs {
@@ -2345,6 +2551,9 @@ details summary {
 /* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
   .hero {
     grid-template-columns: 1fr;
   }
@@ -2457,6 +2666,21 @@ details summary {
 }
 
 @media (max-width: 520px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stat-value {
+    font-size: 1.6rem;
+  }
+  .bar-row {
+    grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr) 2rem;
+  }
+  .two-lists {
+    grid-template-columns: 1fr;
+  }
+  .week-label {
+    font-size: 0.62rem;
+  }
   .row-store select {
     max-width: 112px;
   }
