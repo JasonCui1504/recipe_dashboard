@@ -46,9 +46,13 @@ describe('planShoppingAddition', () => {
     const plan = planShoppingAddition([item('eggs', 6, '', { checked: true })], { name: 'eggs', quantity: 2, unit: '', source: manual });
     expect(plan.action).toBe('create');
   });
-  it('combines unquantified items but never mixes numeric and blank', () => {
+  it('combines bare names with any same-name item, keeping the amount', () => {
     expect(planShoppingAddition([item('salt', null, '')], { name: 'Salt', quantity: null, unit: '', source: manual })).toMatchObject({ action: 'merge', quantity: null });
-    expect(planShoppingAddition([item('salt', null, '')], { name: 'salt', quantity: 1, unit: '', source: manual }).action).toBe('create');
+    expect(planShoppingAddition([item('flour', 2, 'cup')], { name: 'Flour', quantity: null, unit: '', source: manual })).toMatchObject({ action: 'merge', quantity: 2, unit: 'cup' });
+    expect(planShoppingAddition([item('salt', null, '')], { name: 'salt', quantity: 1, unit: '', source: manual })).toMatchObject({ action: 'merge', quantity: 1 });
+  });
+  it('never mixes a numeric amount with a blank one that has a unit', () => {
+    expect(planShoppingAddition([item('salt', null, 'pinch')], { name: 'salt', quantity: 1, unit: 'tsp', source: manual }).action).toBe('create');
   });
   it('skips an ingredient already added for the same planned meal', () => {
     const meal: ShoppingSource = { kind: 'meal', recipeId: 'r', mealId: 'm1', label: 'x' };

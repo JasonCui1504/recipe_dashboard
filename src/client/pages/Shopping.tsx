@@ -416,8 +416,9 @@ export function Shopping() {
             <input type="checkbox" checked={toPantry} onChange={(e) => setToPantry(e.target.checked)} /> Add items to my pantry when I check them off
           </label>
           <p className="muted small no-print">
-            Items combine only when the name matches, the store is the same and the units are compatible (“1 cup + 2 tbsp”). “1 cup rice” and “200 g
-            rice” stay separate. When you move an item to a store, ingredients from recipes and meal plans go to that store next time.
+            Ingredients from recipes and meal plans are added by name only, without amounts, and join an item with the same name already on the list.
+            Amounts you type combine when the units are compatible (“1 cup + 2 tbsp”). When you move an item to a store, ingredients from recipes and
+            meal plans go to that store next time.
           </p>
         </>
       )}

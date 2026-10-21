@@ -173,18 +173,16 @@ describe('meal plan', () => {
 });
 
 describe('shopping list', () => {
-  it('adds recipe ingredients scaled, merging safely', () => {
+  it('adds recipe ingredients by name only, merging into what is already listed', () => {
     const r = store.createRecipe(recipeInput());
     store.addManualShopping({ name: 'Flour', quantity: 1, unit: 'cups', category: '' });
-    store.addManualShopping({ name: 'Flour', quantity: 500, unit: 'g', category: '' });
     const summary = store.addRecipeToShopping(r.id, 4, true);
     expect(summary).toEqual({ added: 1, merged: 1, skipped: 0 });
     const list = store.listShopping();
-    const flourCups = list.find((i) => i.name === 'Flour' && i.unit === 'cups')!;
-    expect(flourCups.quantity).toBe(3);
-    expect(flourCups.sources.map((s) => s.kind)).toEqual(['manual', 'recipe']);
-    expect(list.find((i) => i.unit === 'g')!.quantity).toBe(500);
-    expect(list.find((i) => i.name === 'eggs')!.quantity).toBe(4);
+    const flour = list.find((i) => i.name === 'Flour')!;
+    expect(flour).toMatchObject({ quantity: 1, unit: 'cups' }); // your amount is kept, the recipe's isn't added
+    expect(flour.sources.map((s) => s.kind)).toEqual(['manual', 'recipe']);
+    expect(list.find((i) => i.name === 'eggs')).toMatchObject({ quantity: null, unit: '' });
     expect(list.some((i) => i.name === 'salt')).toBe(false); // staple skipped
   });
 
@@ -204,7 +202,7 @@ describe('shopping list', () => {
     expect(second).toMatchObject({ meals: 1, added: 0, merged: 0, skipped: 3 });
     const names = store.listShopping().map((i) => i.name);
     expect(names).toContain('Coffee');
-    expect(store.listShopping().find((i) => i.name === 'flour')!.quantity).toBe(2);
+    expect(store.listShopping().find((i) => i.name === 'flour')).toMatchObject({ quantity: null, unit: '' });
   });
 
   it('adds only the ingredients ticked in the grocery-plan review', () => {
@@ -264,7 +262,7 @@ describe('stores and per-store shopping lists', () => {
     expect(list.find((i) => i.name === 'eggs')!.store).toBe('');
     // "Where I usually buy it" (null) also uses the memory.
     store.addManualShopping({ name: 'FLOUR', quantity: 1, unit: 'cup', category: '', store: null });
-    expect(store.listShopping().find((i) => i.name === 'flour')!.quantity).toBe(2); // 1 cup from the recipe + 1 cup, same store
+    expect(store.listShopping().filter((i) => i.name === 'flour')).toMatchObject([{ quantity: 1, unit: 'cup', store: tj.id }]); // same line, same store
   });
 
   it('ignores unknown store ids', () => {

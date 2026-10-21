@@ -116,7 +116,8 @@ describe('HTTP API', () => {
     expect(added.json).toMatchObject({ meals: 2 });
     const list = (await call('GET', '/api/shopping')).json;
     const pasta = list.find((i) => i.name === 'pasta');
-    expect(pasta?.quantity).toBe(1000); // 250 g for 2 servings → 500 g per meal × 2 meals
+    expect(pasta).toMatchObject({ quantity: null, unit: '' }); // ingredients only, no amounts
+    expect(list.filter((i) => i.name === 'pasta')).toHaveLength(1);
     expect(list.some((i) => i.name === 'salt')).toBe(false);
   });
 
