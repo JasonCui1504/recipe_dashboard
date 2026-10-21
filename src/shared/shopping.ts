@@ -23,7 +23,10 @@ function sameSource(a: ShoppingSource, b: ShoppingSource): boolean {
 }
 
 /**
- * Decides how an incoming ingredient joins the list. Items combine only when:
+ * Decides how an incoming ingredient joins the list. Recipe and meal-plan
+ * ingredients arrive as bare names (no amount), and a bare name joins any
+ * unchecked item with the same name and store, keeping that item's amount.
+ * Otherwise items combine only when:
  *  - the normalized names are identical (no fuzzy matching), and
  *  - the existing item is not yet checked off and is for the same store, and
  *  - the units are identical, or the same kind of measure (weight or volume),
@@ -43,20 +46,26 @@ export function planShoppingAddition(existing: readonly ShoppingItem[], add: Sho
     }
   }
 
+  // A bare name ("eggs", no amount) is the same line as any "eggs" on the list.
+  const bare = (q: number | null, u: string) => q === null && u.trim() === '';
   const target = existing.find(
     (item) =>
       !item.checked &&
       (item.store ?? '') === (add.store ?? '') &&
       normalizeIngredientName(item.name) === key &&
-      (item.quantity === null && add.quantity === null
-        ? normalizeUnit(item.unit) === unit
-        : item.quantity !== null && add.quantity !== null && canCombineUnits(item.unit, add.unit)),
+      (bare(item.quantity, item.unit) || bare(add.quantity, add.unit)
+        ? true
+        : item.quantity === null && add.quantity === null
+          ? normalizeUnit(item.unit) === unit
+          : item.quantity !== null && add.quantity !== null && canCombineUnits(item.unit, add.unit)),
   );
   if (target) {
     const sum =
-      target.quantity === null || add.quantity === null
-        ? { quantity: null, unit: target.unit }
-        : addQuantities({ quantity: target.quantity, unit: target.unit }, { quantity: add.quantity, unit: add.unit })!;
+      bare(target.quantity, target.unit) && !bare(add.quantity, add.unit)
+        ? { quantity: add.quantity === null ? null : round(add.quantity, 3), unit: add.unit.trim() }
+        : target.quantity === null || add.quantity === null
+          ? { quantity: target.quantity, unit: target.unit }
+          : addQuantities({ quantity: target.quantity, unit: target.unit }, { quantity: add.quantity, unit: add.unit })!;
     return { action: 'merge', targetId: target.id, quantity: sum.quantity, unit: sum.unit, sources: [...target.sources, add.source] };
   }
 

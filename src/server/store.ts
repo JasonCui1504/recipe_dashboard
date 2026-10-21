@@ -378,8 +378,9 @@ export class Store {
         .filter((i, idx) => !(skipStaples && i.staple) && (!onlyIndexes || onlyIndexes.includes(idx)))
         .map((i) => ({
           name: i.name,
-          quantity: i.quantity,
-          unit: i.unit,
+          // Only the ingredient goes on the list, not the recipe's amount.
+          quantity: null,
+          unit: '',
           source: { kind: 'recipe', recipeId: recipe.id, mealId: null, label: recipe.title },
         })),
     );
@@ -403,8 +404,8 @@ export class Store {
           .filter((i) => !(skipStaples && i.staple) && (!allowed || allowed.has(normalizeIngredientName(i.name))))
           .map((i) => ({
             name: i.name,
-            quantity: i.quantity,
-            unit: i.unit,
+            quantity: null,
+            unit: '',
             source: { kind: 'meal', recipeId: recipe.id, mealId: meal.id, label: `${recipe.title} · ${meal.date} ${meal.slot}` },
           })),
       );
