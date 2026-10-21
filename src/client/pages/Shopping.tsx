@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { guessCategory } from '../../shared/ingredients';
 import { formatQuantity, parseQuantity } from '../../shared/quantity';
-import type { ShoppingItem, Store } from '../../shared/schema';
-import { CATEGORY_ORDER, groupByCategory } from '../../shared/shopping';
+import type { PantryItem, ShoppingItem, Store } from '../../shared/schema';
+import { CATEGORY_ORDER, groupByCategory, planPantryRestock } from '../../shared/shopping';
 import { api, ApiError, errorMessage } from '../api';
 import { EmptyState, ErrorState, Loading, Modal, PageHeader } from '../components/common';
 import { IconCalendar, IconCart, IconEdit, IconPlus, IconTrash } from '../components/Icons';
-import { useConfirm, useDocumentTitle, useLoader, useToast } from '../state';
+import { useBasketToPantry, useConfirm, useDocumentTitle, useLoader, useToast } from '../state';
 
 /** Store choice in the add form: a store id, '' (any store) or AUTO (where you usually buy it). */
 const AUTO = '__auto';
@@ -35,6 +36,14 @@ function sourceLabel(item: ShoppingItem): string {
   return labels.length > 2 ? `${labels.slice(0, 2).join(', ')} +${labels.length - 2} more` : labels.join(', ');
 }
 
+/** What checking an item off did to the pantry, so unchecking it can undo exactly that. */
+type PantryEffect = { action: 'created'; pantryId: string } | { action: 'restocked'; item: PantryItem };
+
+function pantryInput(item: PantryItem) {
+  const { id: _i, createdAt: _c, updatedAt: _u, ...input } = item;
+  return input;
+}
+
 const categoryRank = (c: string) => {
   const i = CATEGORY_ORDER.indexOf(c || 'Other');
   return i === -1 ? CATEGORY_ORDER.length : i;
@@ -56,6 +65,8 @@ export function Shopping() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ item: ShoppingItem; form: ItemForm; error: string | null } | null>(null);
   const [managing, setManaging] = useState(false);
+  const [toPantry, setToPantry] = useBasketToPantry();
+  const pantryEffects = useRef(new Map<string, PantryEffect>());
 
   const knownStore = (id: string) => stores.some((s) => s.id === id);
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? 'Any store';
@@ -106,6 +117,53 @@ export function Shopping() {
       list.setData((all) => all.map((i) => (i.id === item.id ? item : i)));
       toast(errorMessage(err), 'error');
       return false;
+    }
+  };
+
+  // Checked off → it's bought, so it goes in the pantry (or comes back from "Finished").
+  const stockPantry = async (item: ShoppingItem) => {
+    const plan = planPantryRestock(await api.pantry.list(), item.name);
+    if (plan.action === 'have') return;
+    if (plan.action === 'restock') {
+      await api.pantry.update(plan.item.id, { ...pantryInput(plan.item), usedUp: false });
+      pantryEffects.current.set(item.id, { action: 'restocked', item: plan.item });
+      toast(`${plan.item.name} is back in your pantry.`, 'info');
+    } else {
+      const created = await api.pantry.create({
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        category: guessCategory(item.name),
+        expiresOn: null,
+        notes: '',
+        usedUp: false,
+      });
+      pantryEffects.current.set(item.id, { action: 'created', pantryId: created.id });
+      toast(`Added ${item.name} to your pantry.`, 'info');
+    }
+  };
+
+  // Unchecked again → undo what checking it did (only what this page did, this visit).
+  const unstockPantry = async (item: ShoppingItem) => {
+    const effect = pantryEffects.current.get(item.id);
+    if (!effect) return;
+    pantryEffects.current.delete(item.id);
+    if (effect.action === 'created') {
+      await api.pantry.remove(effect.pantryId);
+      toast(`Took ${item.name} back out of your pantry.`, 'info');
+    } else {
+      const current = (await api.pantry.list()).find((p) => p.id === effect.item.id);
+      if (current && !current.usedUp) await api.pantry.update(current.id, { ...pantryInput(current), usedUp: true });
+      toast(`${effect.item.name} is back on your Finished list.`, 'info');
+    }
+  };
+
+  const setChecked = async (item: ShoppingItem, checked: boolean) => {
+    if (!(await save(item, { checked })) || !toPantry) return;
+    try {
+      await (checked ? stockPantry(item) : unstockPantry(item));
+    } catch (err) {
+      toast(`Checked off, but the pantry wasn’t updated: ${errorMessage(err)}`, 'error');
     }
   };
 
@@ -178,7 +236,7 @@ export function Shopping() {
   const row = (item: ShoppingItem) => (
     <li key={item.id} className={`item-row shopping-row ${item.checked ? 'is-checked' : ''}`}>
       <label className="shopping-check">
-        <input type="checkbox" checked={item.checked} onChange={(e) => save(item, { checked: e.target.checked })} />
+        <input type="checkbox" checked={item.checked} onChange={(e) => void setChecked(item, e.target.checked)} />
         <span className="item-main">
           <span className="item-name">{item.name}</span>
           {(item.quantity !== null || item.unit) && (
@@ -354,6 +412,9 @@ export function Shopping() {
               <ul className="item-list">{done.map(row)}</ul>
             </section>
           )}
+          <label className="check-inline no-print">
+            <input type="checkbox" checked={toPantry} onChange={(e) => setToPantry(e.target.checked)} /> Add items to my pantry when I check them off
+          </label>
           <p className="muted small no-print">
             Items combine only when the name matches, the store is the same and the units are compatible (“1 cup + 2 tbsp”). “1 cup rice” and “200 g
             rice” stay separate. When you move an item to a store, ingredients from recipes and meal plans go to that store next time.

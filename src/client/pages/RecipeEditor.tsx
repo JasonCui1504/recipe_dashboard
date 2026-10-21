@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { parseIngredientLine } from '../../shared/parse';
 import { formatQuantity, parseQuantity } from '../../shared/quantity';
-import { DIFFICULTIES, describeZodError, emptyRecipeInput, recipeInputSchema, type Recipe, type RecipeInput } from '../../shared/schema';
+import { AI_DRAFT_REQUEST_MAX, DIFFICULTIES, describeZodError, emptyRecipeInput, recipeInputSchema, type Recipe, type RecipeInput } from '../../shared/schema';
 import { api, ApiError, errorMessage } from '../api';
 import { capitalize, EmptyState, ErrorState, FieldErrors, Loading, PageHeader } from '../components/common';
 import { IconChevronLeft, IconClose, IconPlus, IconSpark } from '../components/Icons';
@@ -331,12 +331,16 @@ function RecipeEditor({ initial }: { initial: Recipe | null }) {
               <label className="field">
                 <span className="label">Describe the dish</span>
                 <textarea
-                  rows={2}
-                  maxLength={400}
+                  rows={5}
+                  maxLength={AI_DRAFT_REQUEST_MAX}
                   value={aiRequest}
                   onChange={(e) => setAiRequest(e.target.value)}
-                  placeholder="e.g. a quick weeknight chicken and broccoli stir-fry for 2"
+                  placeholder={'e.g. a quick weeknight chicken and broccoli stir-fry for 2.\nAdd as much detail as you like: ingredients to use up, cooking method, spice level, dietary needs…'}
+                  aria-describedby="ai-request-count"
                 />
+                <span id="ai-request-count" className="hint">
+                  {aiRequest.length} / {AI_DRAFT_REQUEST_MAX} characters
+                </span>
               </label>
               <div className="button-row">
                 <button type="button" className="btn btn-primary" onClick={runDraft} disabled={aiState.loading || !aiRequest.trim()}>

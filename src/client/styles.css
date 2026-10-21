@@ -491,6 +491,10 @@ code {
   background: var(--honey);
   color: var(--honey-text);
 }
+.badge-ready {
+  background: var(--accent-dim);
+  color: var(--prose);
+}
 
 /* ---------- Hero / Discover ---------- */
 
@@ -571,8 +575,11 @@ code {
   padding: 8px 16px;
 }
 .search-hint {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   max-width: 640px;
+  /* Line the hint up with the text inside the rounded search field. */
+  padding: 0 20px;
+  line-height: 1.45;
 }
 .llama-results {
   margin-bottom: 28px;
@@ -1117,6 +1124,12 @@ legend {
   padding: 18px 20px;
   margin-bottom: 20px;
 }
+.ai-panel .field + .button-row {
+  margin-top: 14px;
+}
+.ai-panel textarea {
+  resize: vertical;
+}
 .ai-label {
   display: flex;
   gap: 8px;
@@ -1536,6 +1549,8 @@ legend {
 .tabs {
   display: flex;
   gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
   border-bottom: 1px solid var(--line);
   margin-bottom: 20px;
 }
@@ -1549,6 +1564,7 @@ legend {
   color: var(--faint);
   cursor: pointer;
   margin-bottom: -1px;
+  white-space: nowrap;
 }
 .tab[aria-selected='true'] {
   color: var(--accent-text);
@@ -1764,6 +1780,45 @@ details summary {
 .pantry-item:hover .pantry-edit,
 .pantry-edit:focus-visible {
   opacity: 1;
+}
+.missing-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+.missing-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.missing-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.missing-name {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.missing-for {
+  flex-basis: 100%;
+}
+.missing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 .finished-list {
   list-style: none;

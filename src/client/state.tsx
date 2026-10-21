@@ -279,3 +279,28 @@ export function useUnitSystem(): [UnitSystem, (u: UnitSystem) => void] {
   }, []);
   return [system, set];
 }
+
+// ---------------------------------------------------------------------------
+// Whether checking off a shopping item puts it in the pantry (remembered in this browser).
+// ---------------------------------------------------------------------------
+
+const BASKET_TO_PANTRY_KEY = 'cookbook:basket-to-pantry';
+
+export function useBasketToPantry(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(BASKET_TO_PANTRY_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const set = useCallback((next: boolean) => {
+    setOn(next);
+    try {
+      localStorage.setItem(BASKET_TO_PANTRY_KEY, next ? 'on' : 'off');
+    } catch {
+      /* storage unavailable: the choice lasts for this visit */
+    }
+  }, []);
+  return [on, set];
+}

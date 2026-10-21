@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { guessCategory, normalizeIngredientName, normalizeUnit, unitsCompatible } from '../src/shared/ingredients';
-import { matchRecipe, matchRecipes, indexPantry } from '../src/shared/matching';
+import { collectMissingIngredients, matchRecipe, matchRecipes, indexPantry } from '../src/shared/matching';
 import { ing, pantryItem, recipe } from './helpers';
 
 const opts = { countOptional: false, assumeStaples: true, today: '2026-06-01' };
@@ -122,5 +122,27 @@ describe('matchRecipes', () => {
     const run = () => matchRecipes([a, b, c], [pantryItem('egg')], opts).map((m) => m.recipe.id);
     expect(run()).toEqual(['b', 'c', 'a']);
     expect(run()).toEqual(run());
+  });
+});
+
+describe('collectMissingIngredients', () => {
+  it('lists missing ingredients across recipes, most useful first', () => {
+    const omelette = recipe({ id: 'om', title: 'Omelette', ingredients: [ing(2, '', 'eggs'), ing(null, '', 'chives')] });
+    const pancakes = recipe({ id: 'pc', title: 'Pancakes', ingredients: [ing(1, 'cup', 'flour'), ing(2, '', 'eggs'), ing(1, 'cup', 'milk')] });
+    const salad = recipe({ id: 'sa', title: 'Salad', ingredients: [ing(1, '', 'lettuce'), ing(null, '', 'chive', { optional: true })] });
+    const matches = matchRecipes([omelette, pancakes, salad], [pantryItem('eggs'), pantryItem('flour')], opts);
+    const missing = collectMissingIngredients(matches);
+    expect(missing.map((m) => m.name)).toEqual(['chives', 'lettuce', 'milk']);
+    expect(missing[0].unlocks.map((r) => r.title)).toEqual(['Omelette']);
+    // Optional ingredients aren't counted as missing.
+    expect(missing[0].recipes.map((r) => r.title)).toEqual(['Omelette']);
+  });
+  it('merges plurals and keeps recipes that need several things', () => {
+    const a = recipe({ id: 'a', title: 'A', ingredients: [ing(1, '', 'tomatoes'), ing(1, '', 'basil')] });
+    const b = recipe({ id: 'b', title: 'B', ingredients: [ing(1, '', 'tomato')] });
+    const missing = collectMissingIngredients(matchRecipes([a, b], [], opts));
+    expect(missing[0]).toMatchObject({ key: 'tomato', name: 'tomato' });
+    expect(missing[0].recipes.map((r) => r.id).sort()).toEqual(['a', 'b']);
+    expect(missing[0].unlocks.map((r) => r.id)).toEqual(['b']);
   });
 });

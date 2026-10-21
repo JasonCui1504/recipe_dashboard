@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { addDays, formatWeekRange, isValidIsoDate, startOfWeek, weekDays } from '../src/shared/dates';
 import { parseIngredientLine } from '../src/shared/parse';
 import type { ShoppingItem, ShoppingSource } from '../src/shared/schema';
-import { groupByCategory, planShoppingAddition } from '../src/shared/shopping';
+import { groupByCategory, planPantryRestock, planShoppingAddition } from '../src/shared/shopping';
+import { pantryItem } from './helpers';
 
 const manual: ShoppingSource = { kind: 'manual', recipeId: null, mealId: null, label: 'Added by you' };
 const item = (name: string, quantity: number | null, unit: string, extra: Partial<ShoppingItem> = {}): ShoppingItem => ({
@@ -94,5 +95,20 @@ describe('parseIngredientLine', () => {
     expect(parseIngredientLine('1 tbsp sesame oil (optional)')).toMatchObject({ quantity: 1, unit: 'tbsp', name: 'sesame oil', optional: true });
     expect(parseIngredientLine('2 large onions')).toMatchObject({ quantity: 2, unit: '', name: 'large onions' });
     expect(parseIngredientLine('   ')).toBeNull();
+  });
+});
+
+describe('planPantryRestock', () => {
+  it('adds a new pantry item when there is none', () => {
+    expect(planPantryRestock([pantryItem('rice')], 'Lemons')).toEqual({ action: 'create' });
+  });
+  it('restocks a finished item with the same name', () => {
+    const lemon = pantryItem('lemon', { usedUp: true });
+    expect(planPantryRestock([lemon], 'Lemons')).toEqual({ action: 'restock', item: lemon });
+  });
+  it('leaves an item you already have alone', () => {
+    const old = pantryItem('egg', { id: 'old', usedUp: true });
+    const fresh = pantryItem('eggs', { id: 'fresh' });
+    expect(planPantryRestock([old, fresh], 'Eggs')).toEqual({ action: 'have', item: fresh });
   });
 });
