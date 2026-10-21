@@ -43,6 +43,12 @@ export function validateBaseUrl(raw: string): string {
   return `${url.protocol}//${url.host}`;
 }
 
+/** An earlier turn of a conversation, sent back to the model for context. */
+export interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface AiClientOptions {
@@ -102,7 +108,13 @@ export class OllamaClient {
    * `format` passes a JSON schema to Ollama's structured output support; the
    * zod schema is the authority either way.
    */
-  async chatJson<T>(system: string, user: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>, format: object): Promise<T> {
+  async chatJson<T>(
+    system: string,
+    user: string,
+    schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+    format: object,
+    extra: { history?: readonly ChatTurn[]; numCtx?: number } = {},
+  ): Promise<T> {
     const body = await this.request('/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -110,9 +122,10 @@ export class OllamaClient {
         model: this.settings.model,
         stream: false,
         format,
-        options: { temperature: 0.2, num_ctx: 4096 },
+        options: { temperature: 0.2, num_ctx: extra.numCtx ?? 4096 },
         messages: [
           { role: 'system', content: system },
+          ...(extra.history ?? []).map((t) => ({ role: t.role, content: t.content })),
           { role: 'user', content: user },
         ],
       }),
@@ -368,6 +381,83 @@ export async function recommendRecipes(
     if (recommendations.length === 5) break;
   }
   return { recommendations, note: out.note };
+}
+
+// ---------------------------------------------------------------------------
+// Kitchen assistant: free-form questions about the page you're on
+// ---------------------------------------------------------------------------
+
+export const ASSISTANT_QUESTION_MAX = 1000;
+export const ASSISTANT_HISTORY_MAX = 8;
+export const ASSISTANT_TURN_MAX = 3000;
+
+/** What the assistant can see: the recipe you're looking at, or a little about the page. */
+export interface AssistantContext {
+  /** e.g. "Pantry", "Shopping list", "Recipe" */
+  page: string;
+  recipe?: Recipe;
+  /** Servings you're viewing the recipe at, when different from the recipe's own. */
+  servings?: number;
+  /** Short facts about the page, e.g. pantry item names. */
+  facts?: string[];
+}
+
+const assistantOutputSchema = z.object({
+  answer: z
+    .string()
+    .transform((a) => a.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim())
+    .pipe(z.string().min(1).max(ASSISTANT_TURN_MAX)),
+});
+
+/** The recipe as plain text, the way you'd read it to someone in the kitchen. */
+export function describeRecipeForAssistant(recipe: Recipe, servings?: number): string {
+  const lines = [
+    `Recipe: ${recipe.title}`,
+    recipe.description && `Description: ${recipe.description}`,
+    `Serves ${recipe.servings}${servings && servings !== recipe.servings ? ` (the user is viewing it scaled to ${servings} servings)` : ''}. ` +
+      `Prep ${recipe.prepMinutes} min, cook ${recipe.cookMinutes} min. Difficulty: ${recipe.difficulty}.`,
+    [...recipe.dietary, ...recipe.tags].length ? `Tags: ${[...recipe.dietary, ...recipe.tags].join(', ')}` : '',
+    'Ingredients (for the original servings):',
+    ...recipe.ingredients.map((i) => `- ${describeIngredient(i)}${i.optional ? ' (optional)' : ''}`),
+    'Steps:',
+    ...recipe.steps.map((s, i) => `${i + 1}. ${s}`),
+    recipe.notes && `The user's own notes: ${recipe.notes}`,
+  ];
+  return lines.filter(Boolean).join('\n').slice(0, 8000);
+}
+
+/**
+ * Answers a cooking question in plain text, with the page's context. It only
+ * advises: nothing is changed, and any edit is the user's to make.
+ */
+export async function askAssistant(
+  client: OllamaClient,
+  question: string,
+  context: AssistantContext,
+  history: readonly ChatTurn[] = [],
+): Promise<{ answer: string }> {
+  const ask = question.trim().slice(0, ASSISTANT_QUESTION_MAX);
+  if (!ask) throw new AiError('invalid-config', 'Type a question first.');
+  const system =
+    'You are a friendly, practical kitchen assistant inside the user’s personal cookbook app. ' +
+    'Answer cooking questions clearly and concisely (usually under 150 words). When the user wants to change a recipe ' +
+    '(swap, add or remove an ingredient, change the method, scale it, make it ahead), say exactly what to change: ' +
+    'amounts, at which step, and how times or temperatures shift. Use the recipe’s own step numbers. ' +
+    'Use plain text: short paragraphs or "- " bullet lines, no markdown headings, bold or tables. ' +
+    'Mention safe internal temperatures when meat, poultry or fish is involved. If you are unsure, say so. ' +
+    'Do not give medical, allergy or nutrition claims. You cannot edit the recipe yourself; the user does that. ' +
+    'Reply with JSON only: {"answer":"..."}';
+  const parts = [`The user is on the ${context.page} page.`];
+  if (context.recipe) parts.push(describeRecipeForAssistant(context.recipe, context.servings));
+  if (context.facts?.length) parts.push(...context.facts.map((f) => f.slice(0, 1500)));
+  const turns = history.slice(-ASSISTANT_HISTORY_MAX).map((t) => ({ role: t.role, content: t.content.slice(0, ASSISTANT_TURN_MAX) }));
+  return client.chatJson(
+    system,
+    `${parts.join('\n\n')}\n\nQuestion: ${ask}`,
+    assistantOutputSchema,
+    { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+    { history: turns, numCtx: 8192 },
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -119,6 +119,11 @@ export const api = {
     recommend: (requestText: string) =>
       request<{ recommendations: Array<{ recipeId: string; reason: string }>; note: string }>('POST', '/api/ai/recommend', { request: requestText }),
     draft: (requestText: string) => request<{ draft: RecipeInput }>('POST', '/api/ai/draft', { request: requestText }),
+    ask: (
+      question: string,
+      history: Array<{ role: 'user' | 'assistant'; content: string }>,
+      page: { path: string; recipeId?: string; servings?: number },
+    ) => request<{ answer: string }>('POST', '/api/ai/ask', { question, history, page }),
   },
 };
 

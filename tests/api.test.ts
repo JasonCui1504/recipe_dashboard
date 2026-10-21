@@ -249,6 +249,26 @@ describe('optional AI through the API', () => {
     expect((await call('GET', '/api/stores')).json).toEqual([]);
   });
 
+  it('kitchen assistant: reads the page context itself and never writes', async () => {
+    await call('PUT', '/api/settings/ai', { enabled: true, baseUrl: mock.url, model: 'llama3.1:8b' });
+    await call('POST', '/api/pantry', { name: 'leeks', quantity: null, unit: '', category: '', expiresOn: null, notes: '', usedUp: false });
+    const before = JSON.stringify((await call('GET', '/api/backup/export')).json.data);
+    mock.reply({ answer: 'Stir it in at the end.' });
+    const recipe = SEED_RECIPES[0];
+    const r = await call('POST', '/api/ai/ask', { question: 'Can I add peas?', history: [], page: { path: `/recipes/${recipe.id}`, recipeId: recipe.id } });
+    expect(r.status).toBe(200);
+    expect(r.json).toEqual({ answer: 'Stir it in at the end.' });
+    const prompt = (mock.requests.at(-1)!.body as { messages: Array<{ content: string }> }).messages.at(-1)!.content;
+    expect(prompt).toContain(`Recipe: ${recipe.title}`);
+
+    await call('POST', '/api/ai/ask', { question: 'What goes with leeks?', page: { path: '/pantry' } });
+    expect((mock.requests.at(-1)!.body as { messages: Array<{ content: string }> }).messages.at(-1)!.content).toContain('leeks');
+
+    expect((await call('POST', '/api/ai/ask', { question: 'x', page: { path: '/recipes/nope', recipeId: 'nope' } })).status).toBe(404);
+    expect((await call('POST', '/api/ai/ask', { question: 'x'.repeat(1001), page: { path: '/' } })).status).toBe(400);
+    expect(JSON.stringify((await call('GET', '/api/backup/export')).json.data)).toBe(before);
+  });
+
   it('surfaces malformed model output as a clear error', async () => {
     await call('PUT', '/api/settings/ai', { enabled: true, baseUrl: mock.url, model: 'llama3.1:8b' });
     mock.reply('not json at all');

@@ -448,6 +448,10 @@ test('AI is off by default and the app works without it', async ({ page }) => {
   await page.goto('/settings');
   await expect(page.getByLabel('Enable AI assistance')).not.toBeChecked();
   await expect(page.getByLabel('Ollama address')).toHaveValue('http://127.0.0.1:11434');
+  // The assistant button is on every page and explains how to turn AI on.
+  await page.getByRole('button', { name: 'Ask the kitchen assistant' }).click();
+  await expect(page.getByRole('dialog', { name: 'Kitchen assistant' })).toContainText('turned off');
+  await page.getByRole('button', { name: 'Close the assistant' }).click();
 });
 
 test('optional AI with a mock local model: suggestions are previews, nothing saves without the user', async ({ page, request }) => {
@@ -520,6 +524,22 @@ test('optional AI with a mock local model: suggestions are previews, nothing sav
     await expect(page.getByRole('heading', { name: 'What sounds good?' })).toBeVisible();
     const after = await (await request.get('/api/backup/export')).json();
     expect(after.data).toEqual(before.data);
+
+    // The kitchen assistant answers about the recipe you're on; saving to notes is your call.
+    await openRecipe(page, 'curry', 'Chickpea and Spinach Curry');
+    await page.getByRole('button', { name: 'Ask the kitchen assistant' }).click();
+    const assistant = page.getByRole('dialog', { name: 'Kitchen assistant' });
+    await expect(assistant).toContainText('About: Chickpea and Spinach Curry');
+    mock.reply({ answer: 'Add 1 cup of diced sweet potato at step 2 and simmer 10 minutes longer.' });
+    await assistant.getByLabel('Your question').fill('I want to add sweet potato. How?');
+    await assistant.getByLabel('Your question').press('Enter');
+    await expect(assistant.locator('.from-ai')).toContainText('diced sweet potato');
+    const asked = (mock.requests.at(-1)!.body as { messages: Array<{ content: string }> }).messages.at(-1)!.content;
+    expect(asked).toContain('Recipe: Chickpea and Spinach Curry');
+    expect((await (await request.get('/api/backup/export')).json()).data).toEqual(before.data);
+    await assistant.getByRole('button', { name: 'Add to my notes' }).click();
+    await expect(page.locator('.notes-card')).toContainText('diced sweet potato');
+    await expect(assistant.getByRole('button', { name: 'Added to notes' })).toBeDisabled();
   } finally {
     await request.put('/api/settings/ai', { data: { enabled: false, baseUrl: 'http://127.0.0.1:11434', model: 'llama3.1:8b' } });
     await mock.close();
