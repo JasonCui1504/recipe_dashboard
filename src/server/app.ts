@@ -5,7 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { backupSchema, checkBackupHeader, CONFLICT_STRATEGIES, type Backup } from '../shared/backup';
 import { addDays, isValidIsoDate, toIsoDate } from '../shared/dates';
-import { describeZodError } from '../shared/schema';
+import { AI_DRAFT_REQUEST_MAX, describeZodError } from '../shared/schema';
 import {
   AiError,
   DAILY_TIPS,
@@ -310,8 +310,8 @@ export function createApp(options: AppOptions): App {
     return recommendRecipes(client, b.data.request, recipes, pantry);
   });
   route('POST', '/api/ai/draft', async ({ body }) => {
-    const b = z.object({ request: z.string().max(400) }).safeParse(await body());
-    if (!b.success) throw new AppError(400, 'Describe the recipe in 400 characters or fewer.');
+    const b = z.object({ request: z.string().max(AI_DRAFT_REQUEST_MAX) }).safeParse(await body());
+    if (!b.success) throw new AppError(400, `Describe the recipe in ${AI_DRAFT_REQUEST_MAX} characters or fewer.`);
     return { draft: await draftRecipe(aiClient(), b.data.request) };
   });
 

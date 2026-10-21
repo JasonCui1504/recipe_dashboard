@@ -2,15 +2,15 @@
 
 A dark-green, offline, local-first personal cookbook and kitchen companion. Keep your recipes, scale them, cook step by step, track your pantry, see what you can make, plan the week and build a shopping list. Everything runs on your own computer, and nothing is sent anywhere.
 
-- **This week's / next week's menu** on the home page: a 7-day lunch & dinner calendar where you pick from your recipes. From Friday it shows next week by default.
+- **This week's / next week's menu** on the home page: a 7-day breakfast, lunch & dinner calendar where you pick from your recipes. From Friday it shows next week by default.
 - **Grocery plan** (`Shopping List → Plan groceries for a week`): see everything a week's menu needs, scaled and combined, with what's already in your pantry flagged. Untick what you don't need, add the rest to your shopping list, or print it.
 - **Discover**: search, quick filters (Quick Meals, Vegetarian, High Protein, Favorites, Use My Pantry), categories, favorites, quick picks and recently added recipes.
 - **My Recipes**: your full library, with filtering, sorting, create, edit, duplicate, favorite and delete (deletes ask for confirmation).
 - **Recipe page**: an ingredient checklist, serving-size scaling with fractions, an As written / Metric / US unit switch, numbered steps, notes, rating and optional nutrition (always labelled unverified).
 - **Cooking mode**: a full-screen view with one large step at a time, previous/next buttons (or ← →), progress, and an ingredient checklist that doesn't lose your place.
-- **Pantry**: a simple list of what you have. Add several items at once ("eggs, spinach, rice"); amounts and expiry dates are optional. Tap an item to strike it off when it's finished; it moves to a Finished list with Undo and one-tap Restock. The **What can I cook?** tab explains every match.
+- **Pantry**: a simple list of what you have. Add several items at once ("eggs, spinach, rice"); amounts and expiry dates are optional. Tap an item to strike it off when it's finished; it moves to a Finished list with Undo and one-tap Restock. The **What can I cook?** tab explains every match, and **Missing ingredients** lists everything those recipes still need, with what each one is for and which ingredients would make a recipe ready, plus one-tap Add to shopping list or I have it.
 - **Meal Planner**: a week view with breakfast, lunch, dinner and custom meals, per-meal servings, and protection against duplicates and repeats.
-- **Shopping List**: add items yourself, from a recipe, or from the week's meals. Items are grouped by aisle and combined only when that's safe, and checked-off items stay until you clear them (with confirmation).
+- **Shopping List**: add items yourself, from a recipe, or from the week's meals. Items are grouped by aisle and combined only when that's safe, and checked-off items stay until you clear them (with confirmation). Checking an item off adds it to your pantry, or restocks it if it was on the Finished list; unchecking it undoes that. You can turn this off with the checkbox at the bottom of the list.
 - **Stores**: add your stores (Trader Joe's, Costco…) and each one gets its own shopping list tab. Pick a store when adding an item or from the menu next to any item; the app remembers where you buy each ingredient, so recipe and meal-plan items go to the right store automatically. Removing a store moves its items to "Any store".
 - **Insights**: statistics for the last 4 weeks, 3 months or all time, based on planned meals whose day has passed. It covers your most cooked recipes and most used ingredients, meals per week, vegetarian share, average cooking time, categories and difficulty, and the most veggie-packed recipes (counted from ingredients). It also shows the lightest and highest-protein recipes, using only nutrition you've entered. Plus favorites worth cooking again, pantry and food-waste counts (expired, expiring soon, finished), and your shopping list by store. Nothing is estimated or presented as a health rating.
 - **Backup & restore**: export to a versioned JSON file, then import with a preview and an explicit conflict choice.
@@ -127,7 +127,7 @@ What it does:
 - **Sprout**, the little chef on the home page, shows one message a day. With AI on, your local Llama writes it once a day (it can mention today's planned meals or pantry items expiring soon) and it's saved, so it stays the same all day. With AI off, or if the model doesn't answer within 30 seconds, Sprout shows a built-in tip of the day. Click Sprout to say hi.
 - **Ask Llama** in the home-page search: describe what you feel like ("something cozy with chicken under 30 minutes", "use up my spinach") and it picks up to 5 of *your own* recipes, each with a short reason. It sees recipe titles, times, tags and main ingredients (favorites first, up to 60 recipes) plus the names of what's in your pantry. Any recipe it makes up is dropped, and the normal instant search keeps working underneath.
 - **Substitute?** buttons on recipe ingredients show up to 3 suggestions, clearly labelled as unverified AI output. Your recipe isn't changed.
-- **Draft with AI** on a new recipe fills the form with a draft for you to review. Nothing is saved until you press **Save**, and leaving the page asks before discarding it.
+- **Draft with AI** on a new recipe (describe the dish in up to 2,000 characters) fills the form with a draft for you to review. Nothing is saved until you press **Save**, and leaving the page asks before discarding it.
 
 Safeguards:
 

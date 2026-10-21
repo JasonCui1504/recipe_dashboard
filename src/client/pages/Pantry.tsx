@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { addDays, formatDay, toIsoDate } from '../../shared/dates';
 import { guessCategory, normalizeIngredientName } from '../../shared/ingredients';
-import { matchRecipes, type RecipeMatch } from '../../shared/matching';
+import { collectMissingIngredients, matchRecipes, type RecipeMatch } from '../../shared/matching';
 import { describeIngredient, formatQuantity, parseQuantity } from '../../shared/quantity';
 import { DIFFICULTIES, type PantryInput, type PantryItem } from '../../shared/schema';
 import { collectTags, totalMinutes } from '../../shared/search';
@@ -93,7 +93,8 @@ function PantryFields({
 export function Pantry() {
   useDocumentTitle('Pantry');
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') === 'cook' ? 'cook' : 'inventory';
+  const tabParam = params.get('tab');
+  const tab = tabParam === 'cook' || tabParam === 'missing' ? tabParam : 'inventory';
   const pantry = useLoader(() => api.pantry.list(), []);
 
   return (
@@ -106,6 +107,9 @@ export function Pantry() {
         <button type="button" role="tab" id="tab-cook" aria-controls="panel-cook" aria-selected={tab === 'cook'} className="tab" onClick={() => setParams({ tab: 'cook' }, { replace: true })}>
           What can I cook?
         </button>
+        <button type="button" role="tab" id="tab-missing" aria-controls="panel-missing" aria-selected={tab === 'missing'} className="tab" onClick={() => setParams({ tab: 'missing' }, { replace: true })}>
+          Missing<span className="hide-narrow"> ingredients</span>
+        </button>
       </div>
       {pantry.loading && !pantry.data ? (
         <Loading />
@@ -115,9 +119,13 @@ export function Pantry() {
         <div role="tabpanel" id="panel-inventory" aria-labelledby="tab-inventory">
           <Inventory items={pantry.data ?? []} setItems={(fn) => pantry.setData(fn)} />
         </div>
-      ) : (
+      ) : tab === 'cook' ? (
         <div role="tabpanel" id="panel-cook" aria-labelledby="tab-cook">
           <WhatCanICook pantry={pantry.data ?? []} />
+        </div>
+      ) : (
+        <div role="tabpanel" id="panel-missing" aria-labelledby="tab-missing">
+          <MissingIngredients pantry={pantry.data ?? []} setPantry={(fn) => pantry.setData(fn)} />
         </div>
       )}
     </div>
@@ -580,6 +588,103 @@ function WhatCanICook({ pantry }: { pantry: PantryItem[] }) {
         </ul>
       )}
       <p className="muted small">Nothing is deducted from your pantry automatically — use “Mark used” in the Inventory when you finish something.</p>
+    </>
+  );
+}
+
+/**
+ * Every required ingredient that "What can I cook?" says you're missing, in
+ * one list: what it's for, and which recipes buying it would make ready.
+ */
+function MissingIngredients({ pantry, setPantry }: { pantry: PantryItem[]; setPantry: (fn: (items: PantryItem[]) => PantryItem[]) => void }) {
+  const { recipes } = useRecipes();
+  const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [added, setAdded] = useState<Set<string>>(new Set());
+
+  const missing = useMemo(
+    () => collectMissingIngredients(matchRecipes(recipes, pantry, { countOptional: false, assumeStaples: true, today: toIsoDate(new Date()) })),
+    [recipes, pantry],
+  );
+
+  const toShopping = async (key: string, name: string) => {
+    setBusy(key);
+    try {
+      const r = await api.shopping.add({ name, quantity: null, unit: '', category: guessCategory(name), store: null });
+      setAdded((s) => new Set(s).add(key));
+      toast(r.merged ? `${name} is already on your shopping list.` : `Added ${name} to your shopping list.`, 'success');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const haveIt = async (key: string, name: string) => {
+    setBusy(key);
+    try {
+      const finished = pantry.find((p) => p.usedUp && normalizeIngredientName(p.name) === key);
+      const saved = finished
+        ? await api.pantry.update(finished.id, { ...stripMeta(finished), usedUp: false })
+        : await api.pantry.create({ name, quantity: null, unit: '', category: guessCategory(name), expiresOn: null, notes: '', usedUp: false });
+      setPantry((list) => [...list.filter((i) => i.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
+      toast(`Added ${name} to your pantry.`, 'success');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (missing.length === 0) {
+    return (
+      <EmptyState title="Nothing missing">
+        <p>You have every required ingredient for all of your recipes (assuming staples like salt and oil).</p>
+      </EmptyState>
+    );
+  }
+
+  return (
+    <>
+      <p className="muted">
+        {missing.length} ingredient{missing.length === 1 ? '' : 's'} missing from your pantry across your recipes, from the “What can I cook?” matching
+        (pantry staples assumed, optional ingredients left out). Ingredients that would make a recipe ready to cook come first.
+      </p>
+      <ul className="missing-list">
+        {missing.map((m) => {
+          const titles = m.recipes.map((r) => r.title);
+          return (
+            <li key={m.key} className="missing-item">
+              <div className="missing-main">
+                <span className="missing-name">{m.name}</span>
+                {m.unlocks.length > 0 && (
+                  <span className="badge badge-ready">
+                    Completes {m.unlocks.length} recipe{m.unlocks.length === 1 ? '' : 's'}
+                  </span>
+                )}
+                <span className="muted small missing-for">
+                  For{' '}
+                  {m.recipes.slice(0, 3).map((r, i) => (
+                    <span key={r.id}>
+                      {i > 0 && ', '}
+                      <Link to={`/recipes/${r.id}`}>{r.title}</Link>
+                    </span>
+                  ))}
+                  {titles.length > 3 && ` +${titles.length - 3} more`}
+                </span>
+              </div>
+              <div className="missing-actions">
+                <button type="button" className="btn btn-ghost small" disabled={busy === m.key || added.has(m.key)} onClick={() => void toShopping(m.key, m.name)}>
+                  <IconCart size={16} /> {added.has(m.key) ? 'On the list' : 'Add to shopping list'}
+                </button>
+                <button type="button" className="btn btn-link small" disabled={busy === m.key} onClick={() => void haveIt(m.key, m.name)} aria-label={`I have ${m.name}`}>
+                  I have it
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }

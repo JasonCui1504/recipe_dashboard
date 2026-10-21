@@ -138,6 +138,9 @@ export const aiSettingsSchema = z.object({
 });
 export type AiSettings = z.infer<typeof aiSettingsSchema>;
 
+/** Longest description accepted by "Draft with AI". */
+export const AI_DRAFT_REQUEST_MAX = 2000;
+
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   enabled: false,
   baseUrl: 'http://127.0.0.1:11434',

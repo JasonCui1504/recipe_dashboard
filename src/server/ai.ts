@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { describeIngredient } from '../shared/quantity';
-import { recipeInputSchema, type AiSettings, type Recipe, type RecipeInput } from '../shared/schema';
+import { AI_DRAFT_REQUEST_MAX, recipeInputSchema, type AiSettings, type Recipe, type RecipeInput } from '../shared/schema';
 
 /**
  * Optional local-model integration (Ollama). The rest of the app never talks
@@ -249,7 +249,7 @@ const clampInt = (n: number, min: number, max: number) => Math.min(max, Math.max
 
 /** Returns an unsaved RecipeInput. The caller must show it for review; nothing is stored. */
 export async function draftRecipe(client: OllamaClient, request: string): Promise<RecipeInput> {
-  const ask = request.trim().slice(0, 400);
+  const ask = request.trim().slice(0, AI_DRAFT_REQUEST_MAX);
   if (!ask) throw new AiError('invalid-config', 'Describe the recipe you would like a draft of.');
   const system =
     'You write concise, realistic home recipes. Reply with JSON only, matching the given schema. ' +

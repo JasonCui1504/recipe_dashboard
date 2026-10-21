@@ -107,3 +107,40 @@ export function matchRecipes(
         a.recipe.title.localeCompare(b.recipe.title),
     );
 }
+
+export interface MissingIngredient {
+  /** Normalized ingredient name. */
+  key: string;
+  /** Display name, as first written in a recipe. */
+  name: string;
+  /** Recipes that need it (and that you don't have it for), by title. */
+  recipes: Recipe[];
+  /** Recipes where this is the only missing ingredient — buying it makes them ready. */
+  unlocks: Recipe[];
+}
+
+/**
+ * The "What can I cook?" results turned inside out: every required ingredient
+ * missing from your pantry, with the recipes it's for. Sorted by how many
+ * recipes buying it would make ready, then by how many recipes use it.
+ */
+export function collectMissingIngredients(matches: readonly RecipeMatch[]): MissingIngredient[] {
+  const byKey = new Map<string, MissingIngredient>();
+  for (const m of matches) {
+    const missing = m.items.filter((i) => i.status === 'missing');
+    for (const it of missing) {
+      const key = normalizeIngredientName(it.ingredient.name);
+      if (!key) continue;
+      let entry = byKey.get(key);
+      if (!entry) {
+        entry = { key, name: it.ingredient.name, recipes: [], unlocks: [] };
+        byKey.set(key, entry);
+      }
+      if (!entry.recipes.includes(m.recipe)) entry.recipes.push(m.recipe);
+      if (missing.length === 1 && !entry.unlocks.includes(m.recipe)) entry.unlocks.push(m.recipe);
+    }
+  }
+  return [...byKey.values()].sort(
+    (a, b) => b.unlocks.length - a.unlocks.length || b.recipes.length - a.recipes.length || a.name.localeCompare(b.name),
+  );
+}

@@ -1,6 +1,6 @@
 import { guessCategory, normalizeIngredientName, normalizeUnit } from './ingredients';
 import { round } from './quantity';
-import type { ShoppingItem, ShoppingSource } from './schema';
+import type { PantryItem, ShoppingItem, ShoppingSource } from './schema';
 import { addQuantities, canCombineUnits } from './units';
 
 export interface ShoppingAddition {
@@ -87,4 +87,23 @@ export function groupByCategory<T extends { category: string }>(items: readonly 
     return i === -1 ? CATEGORY_ORDER.length - 1 : i;
   };
   return [...groups.entries()].sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]));
+}
+
+/**
+ * What checking off a shopping item means for the pantry: bring back a
+ * finished item with the same name, leave an item you already have alone,
+ * or add a new one.
+ */
+export type PantryRestock =
+  | { action: 'restock'; item: PantryItem }
+  | { action: 'have'; item: PantryItem }
+  | { action: 'create' };
+
+export function planPantryRestock(pantry: readonly PantryItem[], name: string): PantryRestock {
+  const key = normalizeIngredientName(name);
+  const same = pantry.filter((p) => normalizeIngredientName(p.name) === key);
+  const active = same.find((p) => !p.usedUp);
+  if (active) return { action: 'have', item: active };
+  const finished = same.find((p) => p.usedUp);
+  return finished ? { action: 'restock', item: finished } : { action: 'create' };
 }

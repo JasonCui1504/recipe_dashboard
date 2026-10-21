@@ -143,6 +143,17 @@ test('favorite persists, meal plan, shopping list check-off', async ({ page }) =
   await page.reload();
   await expect(page.locator('.shopping-row', { hasText: 'salmon fillets' }).getByRole('checkbox')).toBeChecked();
 
+  // Checking an item off puts it in the pantry; unchecking it takes it back out.
+  const pantryNames = async () => ((await (await page.request.get('/api/pantry')).json()) as Array<{ name: string; usedUp: boolean }>).filter((p) => !p.usedUp).map((p) => p.name);
+  expect(await pantryNames()).toContain('salmon fillets');
+  const lemons = page.locator('.shopping-row', { hasText: 'Lemons' });
+  await lemons.getByRole('checkbox').check();
+  await expect(page.getByRole('status').filter({ hasText: 'Added Lemons to your pantry' })).toBeVisible();
+  expect(await pantryNames()).toContain('Lemons');
+  await lemons.getByRole('checkbox').uncheck();
+  await expect(page.getByRole('status').filter({ hasText: 'Took Lemons back out of your pantry' })).toBeVisible();
+  expect(await pantryNames()).not.toContain('Lemons');
+
   // Clearing completed items asks first
   await page.getByRole('button', { name: 'Clear completed' }).click();
   const confirm = page.getByRole('dialog', { name: 'Clear completed items?' });
@@ -154,11 +165,12 @@ test('favorite persists, meal plan, shopping list check-off', async ({ page }) =
   await expect(page.locator('.shopping-row', { hasText: 'Lemons' })).toBeVisible();
 });
 
-test('home menu calendar: pick lunch & dinner, then plan next week’s groceries', async ({ page }) => {
+test('home menu calendar: pick breakfast, lunch & dinner, then plan next week’s groceries', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('group', { name: 'Which week' }).getByRole('button', { name: 'Next week' }).click();
   await expect(page.getByRole('heading', { name: 'Next week’s menu' })).toBeVisible();
 
+  await expect(page.getByRole('combobox', { name: /^Choose breakfast for Monday/ })).toBeVisible();
   // Search instead of a dropdown: type part of a name, ingredient or tag, then pick.
   const lunch = page.getByRole('combobox', { name: /^Choose lunch for Monday/ });
   await lunch.fill('spinach pas');
@@ -338,7 +350,8 @@ test('pantry and what-can-I-cook', async ({ page }) => {
   await page.getByRole('button', { name: /Add details/ }).click();
   await page.getByLabel('Expires').fill('2099-01-31');
   await page.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(page.locator('.pantry-item', { hasText: 'milk' })).toContainText('Use by');
+  const milk = page.locator('.pantry-item').filter({ has: page.locator('.pantry-name', { hasText: /^milk$/i }) });
+  await expect(milk).toContainText('Use by');
   await page.getByRole('tab', { name: 'What can I cook?' }).click();
   const toast = page.locator('.match-card', { hasText: 'Avocado and Egg Toast' });
   await expect(toast).toContainText('Ready to cook');
@@ -369,8 +382,16 @@ test('pantry and what-can-I-cook', async ({ page }) => {
   await expect(page.locator('.finished-item', { hasText: 'milk' })).toBeVisible();
   await page.getByLabel('Add to pantry').fill('Milk');
   await page.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(page.locator('.pantry-item', { hasText: /milk/i })).toHaveCount(1);
+  await expect(milk).toHaveCount(1);
   await expect(page.locator('.finished-item')).toHaveCount(0);
+
+  // Everything "What can I cook?" says is missing, in one list.
+  await page.getByRole('tab', { name: 'Missing ingredients' }).click();
+  const first = page.locator('.missing-item').first();
+  await expect(first).toBeVisible();
+  await expect(first).toContainText('For');
+  await first.getByRole('button', { name: 'Add to shopping list' }).click();
+  await expect(first.getByRole('button', { name: 'On the list' })).toBeDisabled();
 });
 
 test('export a backup and restore it into a clean database', async ({ page, browser }, testInfo) => {

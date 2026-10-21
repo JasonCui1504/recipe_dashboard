@@ -130,14 +130,17 @@ export function Discover() {
           />
           {aiOn && (
             <button type="submit" className="btn btn-primary search-ai" disabled={!query.trim() || llama?.loading} aria-label="Ask Llama">
-              <IconSpark size={16} />{' '}
-              {llama?.loading ? (
-                'Thinking…'
-              ) : (
-                <>
-                  Ask<span className="hide-narrow"> Llama</span>
-                </>
-              )}
+              <IconSpark size={16} />
+              {/* One text node so the button's flex gap doesn't widen the space in "Ask Llama". */}
+              <span>
+                {llama?.loading ? (
+                  'Thinking…'
+                ) : (
+                  <>
+                    Ask<span className="hide-narrow"> Llama</span>
+                  </>
+                )}
+              </span>
             </button>
           )}
         </form>
@@ -269,7 +272,7 @@ export function Discover() {
                 <h2 id="menu-title" className="section-title">
                   {weekOffset === 0 ? 'This week’s menu' : 'Next week’s menu'}
                 </h2>
-                <p className="section-note">{formatWeekRange(menuWeek)} · choose a lunch and dinner for each day</p>
+                <p className="section-note">{formatWeekRange(menuWeek)} · choose breakfast, lunch and dinner for each day</p>
               </div>
               <div className="button-row">
                 <div className="segmented" role="group" aria-label="Which week">
@@ -287,7 +290,7 @@ export function Discover() {
             </div>
             <WeekMenu weekStart={menuWeek} />
             <p className="muted small">
-              Need breakfast, custom meals or different servings? Open the full <Link to={`/planner?week=${menuWeek}`}>Meal Planner</Link>.
+              Need snacks, custom meals or different servings? Open the full <Link to={`/planner?week=${menuWeek}`}>Meal Planner</Link>.
             </p>
           </section>
           {tags.length > 0 && (

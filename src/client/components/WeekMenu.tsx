@@ -9,12 +9,13 @@ import { IconClose } from './Icons';
 import { RecipePicker } from './RecipePicker';
 
 const SLOTS = [
+  { id: 'breakfast', label: 'Breakfast' },
   { id: 'lunch', label: 'Lunch' },
   { id: 'dinner', label: 'Dinner' },
 ] as const;
 
 /**
- * A compact lunch & dinner calendar for one week. Pick a recipe from the
+ * A compact breakfast, lunch & dinner calendar for one week. Pick a recipe from the
  * dropdown in any empty slot and it's planned immediately.
  */
 export function WeekMenu({ weekStart }: { weekStart: string }) {
