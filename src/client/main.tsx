@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Link, Outlet, RouterProvider } from 'react-router-dom';
+import { Assistant } from './components/Assistant';
 import { EmptyState } from './components/common';
 import { Layout } from './components/Layout';
 import { CookingMode } from './pages/CookingMode';
@@ -38,6 +39,7 @@ function Providers() {
       <ConfirmProvider>
         <RecipesProvider>
           <Outlet />
+          <Assistant />
         </RecipesProvider>
       </ConfirmProvider>
     </ToastProvider>

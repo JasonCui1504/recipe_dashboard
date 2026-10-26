@@ -8,6 +8,10 @@ import { addDays, isValidIsoDate, toIsoDate } from '../shared/dates';
 import { AI_DRAFT_REQUEST_MAX, describeZodError } from '../shared/schema';
 import {
   AiError,
+  askAssistant,
+  ASSISTANT_HISTORY_MAX,
+  ASSISTANT_QUESTION_MAX,
+  ASSISTANT_TURN_MAX,
   DAILY_TIPS,
   draftRecipe,
   generateDailyMessage,
@@ -313,6 +317,48 @@ export function createApp(options: AppOptions): App {
     const b = z.object({ request: z.string().max(AI_DRAFT_REQUEST_MAX) }).safeParse(await body());
     if (!b.success) throw new AppError(400, `Describe the recipe in ${AI_DRAFT_REQUEST_MAX} characters or fewer.`);
     return { draft: await draftRecipe(aiClient(), b.data.request) };
+  });
+
+  // The kitchen assistant: questions about whatever page you're on. The server
+  // looks up the context itself (the recipe, pantry names…) from the page path.
+  route('POST', '/api/ai/ask', async ({ body }) => {
+    const b = z
+      .object({
+        question: z.string().max(ASSISTANT_QUESTION_MAX),
+        history: z
+          .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(ASSISTANT_TURN_MAX) }))
+          .max(ASSISTANT_HISTORY_MAX * 2)
+          .default([]),
+        page: z.object({ path: z.string().max(300), recipeId: z.string().max(64).optional(), servings: z.number().int().min(1).max(100).optional() }),
+      })
+      .safeParse(await body());
+    if (!b.success) throw new AppError(400, `Keep the question to ${ASSISTANT_QUESTION_MAX} characters or fewer.`);
+    const client = aiClient();
+    const { path, recipeId, servings } = b.data.page;
+    const recipes = () => new Map(store.listRecipes().map((r) => [r.id, r.title]));
+    const today = toIsoDate(new Date());
+    let context: Parameters<typeof askAssistant>[2];
+    if (recipeId) {
+      context = { page: path.endsWith('/cook') ? 'cooking mode' : path.endsWith('/edit') ? 'edit recipe' : 'recipe', recipe: store.getRecipe(recipeId), servings };
+    } else if (path.startsWith('/pantry')) {
+      const items = store.listPantry().filter((p) => !p.usedUp);
+      context = { page: 'Pantry', facts: [`In the pantry: ${items.map((p) => p.name).slice(0, 80).join(', ') || 'nothing yet'}.`] };
+    } else if (path.startsWith('/shopping')) {
+      const items = store.listShopping().filter((i) => !i.checked);
+      context = { page: 'Shopping list', facts: [`On the shopping list: ${items.map((i) => i.name).slice(0, 80).join(', ') || 'nothing yet'}.`] };
+    } else if (path.startsWith('/planner') || path === '/') {
+      const titles = recipes();
+      const meals = store.listMeals(today, addDays(today, 6)).map((m) => `${m.date} ${m.slot}: ${titles.get(m.recipeId) ?? 'a recipe'}`);
+      context = {
+        page: path === '/' ? 'home (Discover)' : 'Meal Planner',
+        facts: [`Today is ${today}.`, `Planned for the next 7 days: ${meals.slice(0, 30).join('; ') || 'nothing yet'}.`],
+      };
+    } else if (path.startsWith('/recipes')) {
+      context = { page: path === '/recipes/new' ? 'new recipe' : 'My Recipes', facts: [`The user's recipes: ${[...recipes().values()].slice(0, 80).join('; ')}.`] };
+    } else {
+      context = { page: path.replace(/^\//, '') || 'home' };
+    }
+    return askAssistant(client, b.data.question, context, b.data.history);
   });
 
   const staticRoot = options.staticDir ? resolve(options.staticDir) : null;

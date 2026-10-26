@@ -70,6 +70,7 @@ Browser (React SPA)  ──HTTP/JSON, same origin──▶  Node server (127.0.0
 - Calls go to `POST /api/chat` with `stream: false` and `temperature: 0.2`, plus a JSON schema in `format`; the reply is parsed and validated with zod. Errors are typed as `disabled`, `invalid-config`, `unavailable`, `timeout`, `bad-response` or `invalid-output`, and the UI shows them alongside a non-AI fallback.
 - `suggestSubstitutions` sends only the recipe title, the other ingredient names and the target ingredient.
 - `draftRecipe` sends only the user's short request. It normalizes the result (clamps numbers, strips step numbering, dedupes tags), validates it as a `RecipeInput` and returns it unsaved.
+- `askAssistant` answers free-form questions in plain text. `POST /api/ai/ask` takes the question, up to 16 earlier turns and the page path (plus a recipe id and servings on recipe pages). The server looks up the context itself (the recipe, or pantry/shopping/plan names) rather than trusting text from the browser.
 - The AI routes have no access to write methods. Tests assert that the database is byte-for-byte unchanged after AI calls.
 
 ## Backup format

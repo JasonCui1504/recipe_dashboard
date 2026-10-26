@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AiError, DAILY_TIPS, draftRecipe, generateDailyMessage, OllamaClient, recommendRecipes, suggestSubstitutions, validateBaseUrl } from '../src/server/ai';
+import { AiError, askAssistant, DAILY_TIPS, draftRecipe, generateDailyMessage, OllamaClient, recommendRecipes, suggestSubstitutions, validateBaseUrl } from '../src/server/ai';
 import { recipeInputSchema } from '../src/shared/schema';
 import { ing, recipe } from './helpers';
 import { startMockOllama, type MockOllama } from './mock-ollama';
@@ -173,5 +173,32 @@ describe('Ollama client against a mock server', () => {
     mock.reply({ note: 'no message' });
     expect(await code(generateDailyMessage(client(), { dateLabel: 'x', todaysMeals: [], expiringSoon: [], recentMessages: [] }))).toBe('invalid-output');
     expect(DAILY_TIPS.length).toBeGreaterThanOrEqual(28);
+  });
+});
+
+describe('kitchen assistant', () => {
+  it('answers with the recipe and the earlier conversation as context', async () => {
+    mock.reply({ answer: '  Add sliced mushrooms at step 2.\r\n\n\n\nCook 5 minutes more.  ' });
+    const r = recipe({ title: 'Garlic Pasta', notes: 'Kids like it mild.', steps: ['Boil pasta.', 'Fry garlic in oil.'] });
+    const out = await askAssistant(client(), 'How do I add mushrooms?', { page: 'recipe', recipe: r, servings: 4 }, [
+      { role: 'user', content: 'Is it spicy?' },
+      { role: 'assistant', content: 'Not at all.' },
+    ]);
+    expect(out.answer).toBe('Add sliced mushrooms at step 2.\n\nCook 5 minutes more.');
+    const body = mock.requests.at(-1)!.body as { messages: Array<{ role: string; content: string }>; options: { num_ctx: number } };
+    expect(body.messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'user']);
+    const last = body.messages.at(-1)!.content;
+    expect(last).toContain('Recipe: Garlic Pasta');
+    expect(last).toContain('2. Fry garlic in oil.');
+    expect(last).toContain('scaled to 4 servings');
+    expect(last).toContain('Kids like it mild.');
+    expect(last).toContain('Question: How do I add mushrooms?');
+    expect(body.options.num_ctx).toBe(8192);
+  });
+
+  it('refuses an empty question and discards empty answers', async () => {
+    expect(await code(askAssistant(client(), '   ', { page: 'Pantry' }))).toBe('invalid-config');
+    mock.reply({ answer: '' });
+    expect(await code(askAssistant(client(), 'Hi?', { page: 'Pantry' }))).toBe('invalid-output');
   });
 });
