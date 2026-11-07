@@ -18,6 +18,7 @@ export function Settings() {
     <div className="page settings-page">
       <PageHeader title="Settings & Backup" kicker="Your data, on your computer" />
       <BackupSection />
+      <CostsSection />
       <AiSection />
       <section className="card" aria-labelledby="storage-title">
         <h2 id="storage-title" className="section-title small-title">
@@ -25,7 +26,8 @@ export function Settings() {
         </h2>
         <p>
           Recipes, pantry, meal plan and shopping list are stored in a SQLite database (<code>data/cookbook.db</code>) inside the app folder, and uploaded
-          photos in <code>data/uploads/</code>. The app only runs on this computer (127.0.0.1) and makes no internet requests.
+          photos in <code>data/uploads/</code>. The app only runs on this computer (127.0.0.1) and makes no internet requests, except sending your
+          shopping list to the Costs page when you set that up below.
         </p>
       </section>
     </div>
@@ -211,6 +213,121 @@ function BackupSection() {
       <button type="button" className="btn btn-ghost" onClick={restore}>
         Restore starter recipes
       </button>
+    </section>
+  );
+}
+
+function CostsSection() {
+  const settings = useLoader(() => api.costs.settings(), []);
+  const toast = useToast();
+  const [url, setUrl] = useState('');
+  const [auto, setAuto] = useState(false);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (settings.data) {
+      setUrl(settings.data.url);
+      setAuto(settings.data.auto);
+    }
+  }, [settings.data]);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const saved = await api.costs.saveSettings({ url, auto, ...(token.trim() ? { token: token.trim() } : {}) });
+      settings.setData(() => saved);
+      setToken('');
+      toast('Costs settings saved.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError && err.details.length ? err.details.join(' ') : errorMessage(err), 'error');
+    }
+  };
+
+  const forget = async () => {
+    try {
+      const saved = await api.costs.saveSettings({ url, auto: false, token: '' });
+      settings.setData(() => saved);
+      setAuto(false);
+      toast('Removed the sync token.', 'info');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    }
+  };
+
+  const sendNow = async () => {
+    setBusy(true);
+    try {
+      const { count } = await api.costs.send();
+      toast(`Sent ${count} item${count === 1 ? '' : 's'} to Costs.`, 'success');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+      settings.reload();
+    }
+  };
+
+  if (settings.loading && !settings.data) return <Loading />;
+  if (settings.error) return <ErrorState message={settings.error} onRetry={settings.reload} />;
+  const s = settings.data;
+  const last = s?.last;
+
+  return (
+    <section className="card" aria-labelledby="costs-settings-title">
+      <h2 id="costs-settings-title" className="section-title small-title">
+        Send to Costs
+      </h2>
+      <p>
+        Send your shopping list to the Costs page on your website, where you can tick items off on your phone in the store and see where they’re
+        cheapest. It only goes one way: ticking things off there doesn’t change the list here. Each send replaces the list there, keeping what you’ve
+        already ticked off.
+      </p>
+      <form className="form" onSubmit={save}>
+        <div className="field-row">
+          <label className="field field-grow">
+            <span className="label">Website</span>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.jascui.com" />
+          </label>
+          <label className="field field-grow">
+            <span className="label">Sync token</span>
+            <input
+              type="password"
+              value={token}
+              autoComplete="off"
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={s?.tokenSet ? 'Saved (type to replace)' : 'Paste your token'}
+              aria-describedby="costs-token-hint"
+            />
+            <span id="costs-token-hint" className="hint">
+              The token set for your user in COSTS_SYNC_TOKENS on the website. It’s kept on this computer and only sent to that site.
+            </span>
+          </label>
+        </div>
+        <label className="check-inline">
+          <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Send automatically whenever the shopping list changes
+        </label>
+        <div className="button-row">
+          <button type="submit" className="btn btn-primary">
+            Save
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => void sendNow()} disabled={busy || !s?.tokenSet}>
+            {busy ? 'Sending…' : 'Send now'}
+          </button>
+          {s?.tokenSet && (
+            <button type="button" className="btn btn-ghost btn-danger-text" onClick={() => void forget()}>
+              Remove token
+            </button>
+          )}
+        </div>
+        {last && (
+          <p className={last.ok ? 'muted small' : 'form-error'} role="status">
+            {last.ok
+              ? `Last sent ${new Date(last.at).toLocaleString()} (${last.count} item${last.count === 1 ? '' : 's'}).`
+              : `Last send failed (${new Date(last.at).toLocaleString()}): ${last.error}`}
+          </p>
+        )}
+      </form>
     </section>
   );
 }

@@ -138,6 +138,24 @@ export const aiSettingsSchema = z.object({
 });
 export type AiSettings = z.infer<typeof aiSettingsSchema>;
 
+/** Sending the shopping list to the Costs page on the website (one way). */
+export const costsSyncSchema = z.object({
+  url: z.string().trim().max(200),
+  token: z.string().trim().max(200),
+  /** Send again by itself a few seconds after the list changes. */
+  auto: z.boolean(),
+});
+export type CostsSync = z.infer<typeof costsSyncSchema>;
+export const DEFAULT_COSTS_SYNC: CostsSync = { url: 'https://www.jascui.com', token: '', auto: false };
+
+/** What the UI sees: never the token itself. */
+export interface CostsSyncStatus {
+  url: string;
+  auto: boolean;
+  tokenSet: boolean;
+  last: { at: string; ok: boolean; count: number; error: string } | null;
+}
+
 /** Longest description accepted by "Draft with AI". */
 export const AI_DRAFT_REQUEST_MAX = 2000;
 
