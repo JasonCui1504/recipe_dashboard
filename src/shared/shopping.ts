@@ -1,5 +1,5 @@
 import { guessCategory, normalizeIngredientName, normalizeUnit } from './ingredients';
-import { round } from './quantity';
+import { formatQuantity, round } from './quantity';
 import type { PantryItem, ShoppingItem, ShoppingSource } from './schema';
 import { addQuantities, canCombineUnits } from './units';
 
@@ -115,4 +115,34 @@ export function planPantryRestock(pantry: readonly PantryItem[], name: string): 
   if (active) return { action: 'have', item: active };
   const finished = same.find((p) => p.usedUp);
   return finished ? { action: 'restock', item: finished } : { action: 'create' };
+}
+
+/**
+ * The shopping list as a plain-text email: one heading per group, one
+ * "- name (amount)" line per item. Only the given groups are included, so
+ * the caller decides what's in it (normally what's still to buy).
+ */
+export function shoppingListEmail(
+  title: string,
+  groups: ReadonlyArray<readonly [string, ReadonlyArray<Pick<ShoppingItem, 'name' | 'quantity' | 'unit'>>]>,
+): { subject: string; body: string } {
+  const count = groups.reduce((n, [, items]) => n + items.length, 0);
+  const sections = groups
+    .filter(([, items]) => items.length > 0)
+    .map(([group, items]) => {
+      const lines = items.map((i) => {
+        const amount = [i.quantity === null ? '' : formatQuantity(i.quantity), i.unit.trim()].filter(Boolean).join(' ');
+        return `- ${i.name}${amount ? ` (${amount})` : ''}`;
+      });
+      return `${group}\n${lines.join('\n')}`;
+    });
+  return {
+    subject: `${title} (${count} ${count === 1 ? 'item' : 'items'})`,
+    body: sections.length ? `${sections.join('\n\n')}\n` : 'Nothing to buy.\n',
+  };
+}
+
+/** A mailto: link. Spaces are %20, not "+", which mail apps show literally. */
+export function mailtoHref(to: string, subject: string, body: string): string {
+  return `mailto:${encodeURIComponent(to.trim()).replace(/%40/g, '@')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }

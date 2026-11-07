@@ -2954,3 +2954,19 @@ details summary {
     max-height: calc(100vh - 150px);
   }
 }
+
+/* Email shopping list preview */
+.email-preview {
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  padding: 0.75rem;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--subtle);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
