@@ -61,7 +61,13 @@ Browser (React SPA)  ──HTTP/JSON, same origin──▶  Node server (127.0.0
 - The built UI is served with a strict Content-Security-Policy (`default-src 'self'`), so the page can't load or send anything off-machine.
 - Static-file paths are resolved and checked against the build directory.
 - Uploads are checked by magic bytes (PNG, JPEG or WebP only), capped at 5 MB, given random names and stored only in `data/uploads/`.
-- There is no telemetry, analytics or authentication service, and no network access except the optional local Ollama.
+- There is no telemetry, analytics or authentication service, and no network access except the optional local Ollama and, once set up, Send to Costs.
+
+## Send to Costs (`src/server/costs.ts`)
+
+- `POST /api/costs/send` posts the whole shopping list (id, name, quantity, unit, store name, aisle, checked) to `<site>/api/costs/import` with `Authorization: Bearer <token>`. One way: nothing is read back.
+- The request is made by the server, so the page's CSP is unchanged. The site address must be https (or http on loopback), redirects are never followed (they would carry the token elsewhere), and the token is never returned to the browser.
+- Settings live under the `costsSync` key (`GET/PUT /api/settings/costs`). With `auto` on, any successful write to `/api/shopping*`, `/api/stores*` or a backup import schedules a send 3 s later (debounced). The last result is kept in memory and shown in Settings.
 
 ## Optional AI (`src/server/ai.ts`)
 
