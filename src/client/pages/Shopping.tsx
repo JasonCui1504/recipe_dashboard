@@ -80,13 +80,18 @@ export function Shopping() {
   const [sending, setSending] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [costsOn, setCostsOn] = useState(false);
+  const [costsStatus, setCostsStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const pullBusy = useRef(false);
 
   // Ticks made on the Costs page (on your phone, in the store) → check those
   // items off here. Quietly on opening the list; with a message from the button.
   const pullTicks = async (quiet: boolean) => {
-    setPulling(true);
+    if (pullBusy.current) return;
+    pullBusy.current = true;
+    if (!quiet) setPulling(true);
     try {
       const { checked, unchecked } = await api.costs.pull(toPantry);
+      setCostsStatus({ ok: true, text: `Ticks from Costs checked at ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` });
       if (checked.length || unchecked.length) {
         list.reload();
         const names = (n: string[]) => (n.length > 3 ? `${n.slice(0, 3).join(', ')} +${n.length - 3} more` : n.join(', '));
@@ -100,27 +105,43 @@ export function Shopping() {
         toast('No new ticks on Costs.', 'info');
       }
     } catch (err) {
+      setCostsStatus({ ok: false, text: `Couldn’t get ticks from Costs: ${errorMessage(err)}` });
       if (!quiet) toast(errorMessage(err), 'error');
     } finally {
+      pullBusy.current = false;
       setPulling(false);
     }
   };
+  // Keep the latest pullTicks (it reads the pantry option) for the timers below.
+  const pullRef = useRef(pullTicks);
+  pullRef.current = pullTicks;
 
+  // Check for ticks when the list opens, whenever you come back to the window,
+  // and every 30 seconds while it's showing, so ticks from your phone arrive
+  // even if the list stays open.
   useEffect(() => {
     let live = true;
+    let every: ReturnType<typeof setInterval> | null = null;
+    const pull = () => {
+      if (document.visibilityState === 'visible') void pullRef.current(true);
+    };
     api.costs
       .settings()
       .then((s) => {
         if (!live || !s.tokenSet) return;
         setCostsOn(true);
-        void pullTicks(true);
+        pull();
+        window.addEventListener('focus', pull);
+        document.addEventListener('visibilitychange', pull);
+        every = setInterval(pull, 30_000);
       })
       .catch(() => {});
     return () => {
       live = false;
+      if (every) clearInterval(every);
+      window.removeEventListener('focus', pull);
+      document.removeEventListener('visibilitychange', pull);
     };
-    // Once per visit to the page.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const knownStore = (id: string) => stores.some((s) => s.id === id);
@@ -417,6 +438,12 @@ export function Shopping() {
           <IconCalendar size={18} /> Plan groceries for a week
         </Link>
       </PageHeader>
+
+      {costsOn && costsStatus && (
+        <p className={`${costsStatus.ok ? 'muted' : 'form-error'} small no-print`} role="status">
+          {costsStatus.text}
+        </p>
+      )}
 
       <div className="store-tabs no-print" role="group" aria-label="Lists by store">
         <button type="button" className="chip" aria-pressed={tab === ''} onClick={() => selectTab('')}>
