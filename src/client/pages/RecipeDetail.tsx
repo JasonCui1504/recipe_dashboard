@@ -4,6 +4,7 @@ import { describeIngredient, formatQuantity, scaleIngredients } from '../../shar
 import { totalMinutes } from '../../shared/search';
 import { api, errorMessage } from '../api';
 import { AddToPlanDialog } from '../components/AddToPlanDialog';
+import { HealthReviewPanel } from '../components/HealthReview';
 import { capitalize, EmptyState, ErrorState, FavoriteButton, formatMinutes, Loading, Modal } from '../components/common';
 import { IconCalendar, IconCart, IconChevronLeft, IconCopy, IconEdit, IconPlay, IconSpark, IconTrash } from '../components/Icons';
 import { RecipeArt } from '../components/RecipeArt';
@@ -25,6 +26,7 @@ export function RecipeDetail() {
   const servings = Number(params.get('servings')) || recipe?.servings || 1;
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [planOpen, setPlanOpen] = useState(false);
+  const [healthOpen, setHealthOpen] = useState(false);
   const [skipStaples, setSkipStaples] = useState(true);
   const [busy, setBusy] = useState(false);
   const ai = useLoader(() => api.ai.settings(), []);
@@ -194,6 +196,11 @@ export function RecipeDetail() {
             <Link className="btn btn-ghost" to={`/recipes/${recipe.id}/edit`}>
               <IconEdit size={18} /> Edit
             </Link>
+            {aiEnabled && (
+              <button type="button" className="btn btn-ghost" onClick={() => setHealthOpen(true)}>
+                <IconSpark size={18} /> Health check
+              </button>
+            )}
             <FavoriteButton recipe={recipe} className="btn-fav" />
           </div>
           <label className="check-inline small">
@@ -335,6 +342,8 @@ export function RecipeDetail() {
           </div>
         </section>
       </div>
+
+      {aiEnabled && <HealthReviewPanel recipe={recipe} open={healthOpen} onClose={() => setHealthOpen(false)} />}
 
       <AddToPlanDialog open={planOpen} onClose={() => setPlanOpen(false)} recipe={recipe} />
 

@@ -198,6 +198,11 @@ describe('optional AI through the API', () => {
     });
     const draft = await call('POST', '/api/ai/draft', { request: 'a simple soup' });
     expect(draft.status).toBe(200);
+
+    mock.reply({ ingredients: [{ n: 1, rating: 'good', reason: 'Fine.' }], score: 7, verdict: 'Balanced', summary: 'A balanced meal.', tips: [] });
+    const health = await call('POST', '/api/ai/health', { recipeId: SEED_RECIPES[0].id });
+    expect(health.status).toBe(200);
+    expect(health.json).toMatchObject({ score: 7, verdict: 'Balanced', ingredients: [{ index: 0, rating: 'good' }] });
     expect((draft.json.draft as { title: string }).title).toBe('Draft Soup');
 
     const after = JSON.stringify((await call('GET', '/api/backup/export')).json.data);

@@ -113,12 +113,15 @@ export function Modal({
   title,
   children,
   wide = false,
+  side = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   wide?: boolean;
+  /** Slides in from the right as a full-height side panel (a bottom sheet on phones). */
+  side?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -130,7 +133,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className={`dialog ${wide ? 'dialog-wide' : ''}`}
+      className={`dialog ${wide ? 'dialog-wide' : ''} ${side ? 'dialog-side' : ''}`}
       aria-labelledby="modal-title"
       onCancel={(e) => {
         e.preventDefault();

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { guessCategory } from '../../shared/ingredients';
 import { formatQuantity, parseQuantity } from '../../shared/quantity';
 import type { PantryItem, ShoppingItem, Store } from '../../shared/schema';
-import { CATEGORY_ORDER, groupByCategory, planPantryRestock } from '../../shared/shopping';
+import { CATEGORY_ORDER, groupByCategory, mailtoHref, planPantryRestock, shoppingListEmail } from '../../shared/shopping';
 import { api, ApiError, errorMessage } from '../api';
 import { EmptyState, ErrorState, Loading, Modal, PageHeader } from '../components/common';
 import { IconCalendar, IconCart, IconEdit, IconPlus, IconTrash } from '../components/Icons';
@@ -12,6 +12,15 @@ import { useBasketToPantry, useConfirm, useDocumentTitle, useLoader, useToast } 
 /** Store choice in the add form: a store id, '' (any store) or AUTO (where you usually buy it). */
 const AUTO = '__auto';
 const ANY_TAB = 'any';
+const EMAIL_KEY = 'cookbook.shoppingEmail';
+
+function savedEmail(): string {
+  try {
+    return localStorage.getItem(EMAIL_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
 
 interface ItemForm {
   name: string;
@@ -65,6 +74,7 @@ export function Shopping() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ item: ShoppingItem; form: ItemForm; error: string | null } | null>(null);
   const [managing, setManaging] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [toPantry, setToPantry] = useBasketToPantry();
   const pantryEffects = useRef(new Map<string, PantryEffect>());
   const [sending, setSending] = useState(false);
@@ -333,6 +343,9 @@ export function Shopping() {
   return (
     <div className="page shopping-page">
       <PageHeader title={title} kicker={`${open.length} to buy${done.length ? ` · ${done.length} in the basket` : ''}`}>
+        <button type="button" className="btn btn-ghost no-print" onClick={() => setEmailing(true)} disabled={open.length === 0}>
+          Email
+        </button>
         <button type="button" className="btn btn-ghost no-print" onClick={() => window.print()}>
           Print
         </button>
@@ -486,6 +499,8 @@ export function Shopping() {
         )}
       </Modal>
 
+      <EmailList open={emailing} onClose={() => setEmailing(false)} email={shoppingListEmail(title, openGroups)} />
+
       <ManageStores
         open={managing}
         onClose={() => setManaging(false)}
@@ -497,6 +512,70 @@ export function Shopping() {
         }}
       />
     </div>
+  );
+}
+
+/** Opens the to-buy list in the mail app, addressed to you. Nothing is sent by the cookbook itself. */
+function EmailList({ open, onClose, email }: { open: boolean; onClose: () => void; email: { subject: string; body: string } }) {
+  const toast = useToast();
+  const [to, setTo] = useState(savedEmail);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = (e: React.FormEvent) => {
+    e.preventDefault();
+    const address = to.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return setError('Enter an email address, like you@example.com.');
+    try {
+      localStorage.setItem(EMAIL_KEY, address);
+    } catch {
+      // Not remembered this time; the email still opens.
+    }
+    setError(null);
+    window.location.href = mailtoHref(address, email.subject, email.body);
+    onClose();
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(email.body);
+      toast('Shopping list copied.', 'info');
+    } catch {
+      toast('Couldn’t copy. Select the text and copy it instead.', 'error');
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Email this list">
+      <form className="form" onSubmit={send}>
+        <label className="field" htmlFor="email-to">
+          <span className="label">Send to</span>
+          <input id="email-to" type="email" autoComplete="email" placeholder="you@example.com" value={to} onChange={(e) => (setTo(e.target.value), setError(null))} />
+        </label>
+        <p className="muted small">
+          This opens a new email in your mail app with what’s still to buy. Check it and press Send there. Your address is remembered in this
+          browser.
+        </p>
+        <pre className="email-preview" aria-label="Email preview">
+          {email.body}
+        </pre>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="dialog-actions">
+          <button type="button" className="btn btn-ghost" onClick={() => void copy()}>
+            Copy text
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary">
+            Open in mail app
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

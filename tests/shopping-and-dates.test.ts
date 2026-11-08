@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addDays, formatWeekRange, isValidIsoDate, startOfWeek, weekDays } from '../src/shared/dates';
 import { parseIngredientLine } from '../src/shared/parse';
 import type { ShoppingItem, ShoppingSource } from '../src/shared/schema';
-import { groupByCategory, planPantryRestock, planShoppingAddition } from '../src/shared/shopping';
+import { groupByCategory, mailtoHref, planPantryRestock, planShoppingAddition, shoppingListEmail } from '../src/shared/shopping';
 import { pantryItem } from './helpers';
 
 const manual: ShoppingSource = { kind: 'manual', recipeId: null, mealId: null, label: 'Added by you' };
@@ -114,5 +114,27 @@ describe('planPantryRestock', () => {
     const old = pantryItem('egg', { id: 'old', usedUp: true });
     const fresh = pantryItem('eggs', { id: 'fresh' });
     expect(planPantryRestock([old, fresh], 'Eggs')).toEqual({ action: 'have', item: fresh });
+  });
+});
+
+describe('shoppingListEmail', () => {
+  it('lists each group with names and amounts, skipping empty groups', () => {
+    const email = shoppingListEmail('Shopping List', [
+      ['Produce', [{ name: 'Spinach', quantity: null, unit: '' }, { name: 'Lemons', quantity: 2, unit: '' }]],
+      ['Dairy & Eggs', [{ name: 'Milk', quantity: 0.5, unit: 'l' }]],
+      ['Bakery', []],
+    ]);
+    expect(email.subject).toBe('Shopping List (3 items)');
+    expect(email.body).toBe('Produce\n- Spinach\n- Lemons (2)\n\nDairy & Eggs\n- Milk (1/2 l)\n');
+  });
+
+  it('says so when there is nothing to buy', () => {
+    expect(shoppingListEmail('Costco', [])).toEqual({ subject: 'Costco (0 items)', body: 'Nothing to buy.\n' });
+  });
+});
+
+describe('mailtoHref', () => {
+  it('encodes spaces as %20 and keeps the address readable', () => {
+    expect(mailtoHref(' me@example.com ', 'A & B', 'x y\nz')).toBe('mailto:me@example.com?subject=A%20%26%20B&body=x%20y%0Az');
   });
 });

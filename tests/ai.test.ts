@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AiError, askAssistant, DAILY_TIPS, draftRecipe, generateDailyMessage, OllamaClient, recommendRecipes, suggestSubstitutions, validateBaseUrl } from '../src/server/ai';
+import { AiError, askAssistant, DAILY_TIPS, draftRecipe, generateDailyMessage, OllamaClient, recommendRecipes, reviewRecipeHealth, suggestSubstitutions, validateBaseUrl } from '../src/server/ai';
 import { recipeInputSchema } from '../src/shared/schema';
 import { ing, recipe } from './helpers';
 import { startMockOllama, type MockOllama } from './mock-ollama';
@@ -200,5 +200,73 @@ describe('kitchen assistant', () => {
     expect(await code(askAssistant(client(), '   ', { page: 'Pantry' }))).toBe('invalid-config');
     mock.reply({ answer: '' });
     expect(await code(askAssistant(client(), 'Hi?', { page: 'Pantry' }))).toBe('invalid-output');
+  });
+});
+
+describe('health check', () => {
+  const r = () =>
+    recipe({
+      title: 'Creamy Spinach Pasta',
+      ingredients: [ing(200, 'g', 'spaghetti'), ing(150, 'g', 'spinach'), ing(100, 'ml', 'heavy cream'), ing(1, 'pinch', 'salt')],
+      steps: ['Boil pasta.', 'Wilt spinach in the cream.'],
+      nutrition: { calories: 620, protein: 18, carbs: null, fat: 30, basis: 'user-entered' },
+    });
+
+  it('rates each numbered ingredient and summarizes, keeping recipe order', async () => {
+    mock.reply({
+      ingredients: [
+        { n: 2, rating: 'great', reason: 'Leafy greens add fibre and iron.' },
+        { n: 1, rating: 'Okay', reason: 'Refined pasta; wholewheat adds fibre.' },
+        { n: 3, rating: 'limit', reason: 'Lots of saturated fat.' },
+        { n: 3, rating: 'good', reason: 'Duplicate, ignored.' },
+        { n: 9, rating: 'great', reason: 'Not in the recipe.' },
+        { n: 4, rating: 'excellent', reason: 'Not a known rating.' },
+      ],
+      score: '5.6',
+      verdict: 'A rich treat with some greens',
+      summary: 'Good greens, but the cream makes it heavy.',
+      tips: ['Use half milk, half cream.', '', 'Add peas.', 'Use wholewheat pasta.', 'Fourth tip dropped.'],
+    });
+    const out = await reviewRecipeHealth(client(), r());
+    expect(out.ingredients).toEqual([
+      { index: 0, name: 'spaghetti', rating: 'okay', reason: 'Refined pasta; wholewheat adds fibre.' },
+      { index: 1, name: 'spinach', rating: 'great', reason: 'Leafy greens add fibre and iron.' },
+      { index: 2, name: 'heavy cream', rating: 'limit', reason: 'Lots of saturated fat.' },
+    ]);
+    expect(out.unrated).toEqual([3]);
+    expect(out.score).toBe(6);
+    expect(out.verdict).toBe('A rich treat with some greens');
+    expect(out.tips).toEqual(['Use half milk, half cream.', 'Add peas.', 'Use wholewheat pasta.']);
+
+    const body = mock.requests.at(-1)!.body as { messages: Array<{ content: string }>; options: { num_ctx: number } };
+    const prompt = body.messages[1].content;
+    expect(prompt).toContain('1. 200 g spaghetti');
+    expect(prompt).toContain('4. 1 pinch salt');
+    expect(prompt).toContain('2. Wilt spinach in the cream.');
+    expect(prompt).toContain('620 kcal, 18 g protein, 30 g fat');
+    expect(body.messages[0].content).toContain('no medical');
+    expect(body.options.num_ctx).toBe(8192);
+  });
+
+  it('shortens long reasons instead of throwing the answer away', async () => {
+    mock.reply({ ingredients: [{ n: 1, rating: 'good', reason: 'x'.repeat(500) }], score: 7, verdict: 'Fine', summary: 'Fine.', tips: [] });
+    const out = await reviewRecipeHealth(client(), r());
+    expect(out.ingredients[0].reason).toHaveLength(240);
+    expect(out.unrated).toEqual([1, 2, 3]);
+  });
+
+  it('discards answers with no usable ratings or a bad score', async () => {
+    mock.reply({ ingredients: [{ n: 7, rating: 'good', reason: 'Wrong number.' }], score: 7, verdict: 'Fine', summary: 'Fine.', tips: [] });
+    expect(await code(reviewRecipeHealth(client(), r()))).toBe('invalid-output');
+    mock.reply({ ingredients: [{ n: 1, rating: 'good', reason: 'Ok.' }], score: 42, verdict: 'Fine', summary: 'Fine.', tips: [] });
+    expect(await code(reviewRecipeHealth(client(), r()))).toBe('invalid-output');
+    mock.reply({ ingredients: [{ n: 1, rating: 'good', reason: 'Ok.' }], score: 7, verdict: '', summary: 'Fine.', tips: [] });
+    expect(await code(reviewRecipeHealth(client(), r()))).toBe('invalid-output');
+  });
+
+  it('refuses a recipe with no ingredients without asking the model', async () => {
+    const before = mock.requests.length;
+    expect(await code(reviewRecipeHealth(client(), recipe({ ingredients: [] })))).toBe('invalid-config');
+    expect(mock.requests.length).toBe(before);
   });
 });
