@@ -196,6 +196,138 @@ export async function suggestSubstitutions(client: OllamaClient, recipe: Recipe,
 }
 
 // ---------------------------------------------------------------------------
+// Health review of one recipe
+// ---------------------------------------------------------------------------
+
+export const HEALTH_RATINGS = ['great', 'good', 'okay', 'limit'] as const;
+export type HealthRating = (typeof HEALTH_RATINGS)[number];
+/** Ingredients beyond this many aren't sent, to keep the prompt and the answer short. */
+export const HEALTH_MAX_INGREDIENTS = 40;
+
+/** Trimmed text, shortened rather than rejected when the model runs long. */
+const clip = (max: number) => z.string().transform((v) => v.replace(/\s+/g, ' ').trim().slice(0, max));
+
+const healthOutputSchema = z.object({
+  ingredients: z
+    .array(
+      z.object({
+        n: z.union([z.number(), z.string()]).transform((v) => Number(v)),
+        rating: z.string().transform((v) => v.trim().toLowerCase()),
+        reason: clip(240),
+      }),
+    )
+    .max(80),
+  score: z.union([z.number(), z.string()]).transform((v, ctx) => {
+    const n = Math.round(Number(v));
+    if (!Number.isFinite(n) || n < 1 || n > 10) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'score out of range' });
+      return z.NEVER;
+    }
+    return n;
+  }),
+  verdict: clip(80).pipe(z.string().min(1)),
+  summary: clip(900).pipe(z.string().min(1)),
+  tips: z.array(clip(200)).max(6).default([]),
+});
+
+const healthFormat = {
+  type: 'object',
+  properties: {
+    ingredients: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { n: { type: 'integer' }, rating: { type: 'string', enum: [...HEALTH_RATINGS] }, reason: { type: 'string' } },
+        required: ['n', 'rating', 'reason'],
+      },
+    },
+    score: { type: 'integer', minimum: 1, maximum: 10 },
+    verdict: { type: 'string' },
+    summary: { type: 'string' },
+    tips: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['ingredients', 'score', 'verdict', 'summary', 'tips'],
+};
+
+export interface HealthReview {
+  /** One entry per rated ingredient, in recipe order. `index` is 0-based into recipe.ingredients. */
+  ingredients: Array<{ index: number; name: string; rating: HealthRating; reason: string }>;
+  /** Ingredients the model skipped (0-based), so the page can say so. */
+  unrated: number[];
+  score: number;
+  verdict: string;
+  summary: string;
+  tips: string[];
+}
+
+/**
+ * Asks the local model for a general healthy-eating review of one recipe: a
+ * rating and a one-line reason per ingredient, then an overall summary. It's
+ * an opinion from a small model, not nutrition data, and nothing is saved.
+ */
+export async function reviewRecipeHealth(client: OllamaClient, recipe: Recipe): Promise<HealthReview> {
+  const sent = recipe.ingredients.slice(0, HEALTH_MAX_INGREDIENTS);
+  if (sent.length === 0) throw new AiError('invalid-config', 'This recipe has no ingredients to review.');
+  const n = recipe.nutrition;
+  const nutrition =
+    n && [n.calories, n.protein, n.carbs, n.fat].some((v) => v !== null)
+      ? `Nutrition per serving (entered by the user, unverified): ${[
+          n.calories !== null && `${n.calories} kcal`,
+          n.protein !== null && `${n.protein} g protein`,
+          n.carbs !== null && `${n.carbs} g carbs`,
+          n.fat !== null && `${n.fat} g fat`,
+        ]
+          .filter(Boolean)
+          .join(', ')}`
+      : '';
+  const user = [
+    `Recipe: ${recipe.title.slice(0, 140)}`,
+    recipe.description && `Description: ${recipe.description.slice(0, 300)}`,
+    `Serves ${recipe.servings}.`,
+    `Ingredients (${sent.length}, for the whole recipe):`,
+    ...sent.map((ing, i) => `${i + 1}. ${describeIngredient(ing).slice(0, 160)}${ing.optional ? ' (optional)' : ''}`),
+    'Method:',
+    recipe.steps
+      .map((st, i) => `${i + 1}. ${st}`)
+      .join('\n')
+      .slice(0, 2500),
+    nutrition,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const system =
+    'You review home recipes for general healthiness, like a sensible, encouraging dietitian writing for a home cook. ' +
+    'Rate EVERY numbered ingredient exactly once, using its number as "n", with one of: ' +
+    '"great" (whole foods that add fibre, protein, vitamins or healthy fats), "good" (fine everyday choices), ' +
+    '"okay" (fine in the amount used, or neutral), "limit" (adds a lot of saturated fat, salt, sugar or refined starch in this amount). ' +
+    'Judge the amount per serving and how it is cooked: a pinch of salt or a spoon of oil for frying is usually "okay". ' +
+    'Give each a reason under 25 words that is specific to this recipe. ' +
+    'Then give "score" from 1 (an occasional treat) to 10 (very nourishing everyday meal), a "verdict" under 8 words, ' +
+    'a "summary" of 2 to 4 sentences covering balance (vegetables, protein, fibre, fat, salt, sugar) and portion, ' +
+    'and up to 3 practical "tips" to make it healthier without ruining it. ' +
+    'Speak about general healthy eating only: no medical, weight-loss, allergy or disease claims, and do not invent exact nutrition numbers. ' +
+    'Reply with JSON only.';
+  const out = await client.chatJson(system, user, healthOutputSchema, healthFormat, { numCtx: 8192 });
+
+  const seen = new Map<number, HealthReview['ingredients'][number]>();
+  for (const item of out.ingredients) {
+    const index = item.n - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= sent.length || seen.has(index)) continue;
+    if (!(HEALTH_RATINGS as readonly string[]).includes(item.rating) || !item.reason) continue;
+    seen.set(index, { index, name: sent[index].name, rating: item.rating as HealthRating, reason: item.reason });
+  }
+  if (seen.size === 0) throw new AiError('invalid-output', 'The model didn’t rate any of the ingredients, so its answer was discarded. Try again.');
+  return {
+    ingredients: [...seen.values()].sort((a, b) => a.index - b.index),
+    unrated: sent.map((_, i) => i).filter((i) => !seen.has(i)),
+    score: out.score,
+    verdict: out.verdict,
+    summary: out.summary,
+    tips: out.tips.filter(Boolean).slice(0, 3),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Draft recipe from a short request
 // ---------------------------------------------------------------------------
 

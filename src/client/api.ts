@@ -116,6 +116,7 @@ export const api = {
         recipeId,
         ingredientIndex,
       }),
+    health: (recipeId: string) => request<HealthReview>('POST', '/api/ai/health', { recipeId }),
     recommend: (requestText: string) =>
       request<{ recommendations: Array<{ recipeId: string; reason: string }>; note: string }>('POST', '/api/ai/recommend', { request: requestText }),
     draft: (requestText: string) => request<{ draft: RecipeInput }>('POST', '/api/ai/draft', { request: requestText }),
@@ -126,6 +127,16 @@ export const api = {
     ) => request<{ answer: string }>('POST', '/api/ai/ask', { question, history, page }),
   },
 };
+
+export type HealthRating = 'great' | 'good' | 'okay' | 'limit';
+export interface HealthReview {
+  ingredients: Array<{ index: number; name: string; rating: HealthRating; reason: string }>;
+  unrated: number[];
+  score: number;
+  verdict: string;
+  summary: string;
+  tips: string[];
+}
 
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;

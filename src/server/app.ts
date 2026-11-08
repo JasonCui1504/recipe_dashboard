@@ -17,6 +17,7 @@ import {
   generateDailyMessage,
   OllamaClient,
   recommendRecipes,
+  reviewRecipeHealth,
   suggestSubstitutions,
   type FetchLike,
 } from './ai';
@@ -304,6 +305,13 @@ export function createApp(options: AppOptions): App {
     }
   });
 
+  // A health review can be long (one line per ingredient), so it gets more time than the default.
+  route('POST', '/api/ai/health', async ({ body }) => {
+    const b = z.object({ recipeId: z.string().max(64) }).safeParse(await body());
+    if (!b.success) throw new AppError(400, 'Choose a recipe.');
+    const client = new OllamaClient(store.getAiSettings(), { fetch: options.aiFetch, timeoutMs: options.aiTimeoutMs ?? 180_000 });
+    return reviewRecipeHealth(client, store.getRecipe(b.data.recipeId));
+  });
   route('POST', '/api/ai/recommend', async ({ body }) => {
     const b = z.object({ request: z.string().max(300) }).safeParse(await body());
     if (!b.success) throw new AppError(400, 'Keep the request to 300 characters or fewer.');
