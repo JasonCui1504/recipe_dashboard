@@ -36,11 +36,14 @@ import {
   type ShoppingItem,
   type Store as GroceryStore,
 } from '../shared/schema';
-import { normalizeIngredientName } from '../shared/ingredients';
-import { planShoppingAddition, type ShoppingAddition } from '../shared/shopping';
+import { guessCategory, normalizeIngredientName } from '../shared/ingredients';
+import { planPantryRestock, planShoppingAddition, type ShoppingAddition } from '../shared/shopping';
 import { transaction } from './db';
 import { AppError, notFound, parseOrThrow } from './errors';
 import { SEED_RECIPES } from './seed';
+
+const costsPantryEffectSchema = z.object({ action: z.enum(['created', 'restocked']), pantryId: z.string() });
+type CostsPantryEffect = z.infer<typeof costsPantryEffectSchema>;
 
 const now = () => new Date().toISOString();
 
@@ -486,6 +489,77 @@ export class Store {
     const next = { ...input, token: input.token ?? this.getCostsSync().token };
     this.setSetting('costsSync', JSON.stringify(next));
     return next;
+  }
+
+  /**
+   * Ticks made on the Costs page, applied here. Only checks items off, and
+   * unchecks only items that a tick from Costs checked off (never something
+   * you checked off at home). With `toPantry`, a checked-off item goes into
+   * the pantry the same way as checking it off on the Shopping List, and
+   * unticking undoes exactly that.
+   */
+  applyCostsTicks(remote: ReadonlyArray<{ id: string; checked: boolean }>, toPantry: boolean): { checked: string[]; unchecked: string[] } {
+    return transaction(this.db, () => {
+      const memo = this.costsTickMemo();
+      const items = new Map(this.listShopping().map((i) => [i.id, i]));
+      const checked: string[] = [];
+      const unchecked: string[] = [];
+      for (const r of remote) {
+        const item = items.get(r.id);
+        if (!item) continue;
+        if (r.checked && !item.checked) {
+          this.writeShopping({ ...item, checked: true, updatedAt: now() }, false);
+          memo[item.id] = toPantry ? this.stockPantry(item) : null;
+          checked.push(item.name);
+        } else if (!r.checked && item.checked && item.id in memo) {
+          this.writeShopping({ ...item, checked: false, updatedAt: now() }, false);
+          this.unstockPantry(memo[item.id]);
+          delete memo[item.id];
+          unchecked.push(item.name);
+        }
+      }
+      for (const id of Object.keys(memo)) if (!items.has(id)) delete memo[id];
+      this.setSetting('costsTicks', JSON.stringify(memo));
+      return { checked, unchecked };
+    });
+  }
+
+  private costsTickMemo(): Record<string, CostsPantryEffect | null> {
+    const raw = this.getSetting('costsTicks');
+    const parsed = raw ? z.record(z.string(), costsPantryEffectSchema.nullable()).safeParse(JSON.parse(raw)) : null;
+    return parsed?.success ? parsed.data : {};
+  }
+
+  private stockPantry(item: ShoppingItem): CostsPantryEffect | null {
+    const plan = planPantryRestock(this.listPantry(), item.name);
+    if (plan.action === 'have') return null;
+    if (plan.action === 'restock') {
+      const { id, createdAt: _c, updatedAt: _u, ...input } = plan.item;
+      this.updatePantryItem(id, { ...input, usedUp: false });
+      return { action: 'restocked', pantryId: id };
+    }
+    const created = this.createPantryItem({
+      name: item.name,
+      quantity: item.quantity,
+      unit: item.unit,
+      category: guessCategory(item.name),
+      expiresOn: null,
+      notes: '',
+      usedUp: false,
+    });
+    return { action: 'created', pantryId: created.id };
+  }
+
+  private unstockPantry(effect: CostsPantryEffect | null | undefined): void {
+    if (!effect) return;
+    const current = this.listPantry().find((p) => p.id === effect.pantryId);
+    if (!current) return;
+    if (effect.action === 'created') {
+      this.deletePantryItem(current.id);
+    } else if (!current.usedUp) {
+      const { id, createdAt: _c, updatedAt: _u, ...input } = current;
+      this.updatePantryItem(id, { ...input, usedUp: true });
+    }
   }
 
   // ---------- daily message ----------
