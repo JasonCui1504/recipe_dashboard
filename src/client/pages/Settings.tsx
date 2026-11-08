@@ -280,8 +280,8 @@ function CostsSection() {
       </h2>
       <p>
         Send your shopping list to the Costs page on your website, where you can tick items off on your phone in the store and see where they’re
-        cheapest. It only goes one way: ticking things off there doesn’t change the list here. Each send replaces the list there, keeping what you’ve
-        already ticked off.
+        cheapest. What you tick off there is checked off here when you open the Shopping List (and goes into your pantry, if that option is on).
+        Each send replaces the list there, keeping what you’ve already ticked off. Without the internet, everything else keeps working.
       </p>
       <form className="form" onSubmit={save}>
         <div className="field-row">

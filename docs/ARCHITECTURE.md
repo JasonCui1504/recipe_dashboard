@@ -65,7 +65,7 @@ Browser (React SPA)  ──HTTP/JSON, same origin──▶  Node server (127.0.0
 
 ## Send to Costs (`src/server/costs.ts`)
 
-- `POST /api/costs/send` posts the whole shopping list (id, name, quantity, unit, store name, aisle, checked) to `<site>/api/costs/import` with `Authorization: Bearer <token>`. One way: nothing is read back.
+- `POST /api/costs/send` posts the whole shopping list (id, name, quantity, unit, store name, aisle, checked) to `<site>/api/costs/import` with `Authorization: Bearer <token>`. `POST /api/costs/pull` reads ticks back with `GET <site>/api/costs/import` (`[{id, checked}]`) and `Store.applyCostsTicks` checks those items off (and adds them to the pantry when asked). It unchecks only items a tick from Costs checked off, remembering each one's pantry effect under the `costsTicks` setting so unticking undoes exactly that.
 - The request is made by the server, so the page's CSP is unchanged. The site address must be https (or http on loopback), redirects are never followed (they would carry the token elsewhere), and the token is never returned to the browser.
 - Settings live under the `costsSync` key (`GET/PUT /api/settings/costs`). With `auto` on, any successful write to `/api/shopping*`, `/api/stores*` or a backup import schedules a send 3 s later (debounced). The last result is kept in memory and shown in Settings.
 

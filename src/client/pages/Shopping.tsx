@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { guessCategory } from '../../shared/ingredients';
 import { formatQuantity, parseQuantity } from '../../shared/quantity';
@@ -78,6 +78,50 @@ export function Shopping() {
   const [toPantry, setToPantry] = useBasketToPantry();
   const pantryEffects = useRef(new Map<string, PantryEffect>());
   const [sending, setSending] = useState(false);
+  const [pulling, setPulling] = useState(false);
+  const [costsOn, setCostsOn] = useState(false);
+
+  // Ticks made on the Costs page (on your phone, in the store) → check those
+  // items off here. Quietly on opening the list; with a message from the button.
+  const pullTicks = async (quiet: boolean) => {
+    setPulling(true);
+    try {
+      const { checked, unchecked } = await api.costs.pull(toPantry);
+      if (checked.length || unchecked.length) {
+        list.reload();
+        const names = (n: string[]) => (n.length > 3 ? `${n.slice(0, 3).join(', ')} +${n.length - 3} more` : n.join(', '));
+        toast(
+          [checked.length && `Checked off from Costs: ${names(checked)}.`, unchecked.length && `Unticked on Costs: ${names(unchecked)}.`]
+            .filter(Boolean)
+            .join(' '),
+          'success',
+        );
+      } else if (!quiet) {
+        toast('No new ticks on Costs.', 'info');
+      }
+    } catch (err) {
+      if (!quiet) toast(errorMessage(err), 'error');
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  useEffect(() => {
+    let live = true;
+    api.costs
+      .settings()
+      .then((s) => {
+        if (!live || !s.tokenSet) return;
+        setCostsOn(true);
+        void pullTicks(true);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+    // Once per visit to the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const knownStore = (id: string) => stores.some((s) => s.id === id);
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? 'Any store';
@@ -184,7 +228,7 @@ export function Shopping() {
     }
   };
 
-  // One way: the whole list goes to the Costs page on the website, to tick off in the store.
+  // The whole list goes to the Costs page on the website, to tick off in the store.
   const sendToCosts = async () => {
     setSending(true);
     try {
@@ -358,6 +402,17 @@ export function Shopping() {
         >
           {sending ? 'Sending…' : 'Send to Costs'}
         </button>
+        {costsOn && (
+          <button
+            type="button"
+            className="btn btn-ghost no-print"
+            onClick={() => void pullTicks(false)}
+            disabled={pulling}
+            title="Check off here what you ticked off on the Costs page"
+          >
+            {pulling ? 'Checking…' : 'Get ticks from Costs'}
+          </button>
+        )}
         <Link className="btn btn-primary no-print" to="/shopping/plan">
           <IconCalendar size={18} /> Plan groceries for a week
         </Link>

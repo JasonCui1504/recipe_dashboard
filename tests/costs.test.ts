@@ -65,9 +65,7 @@ describe('send to Costs', () => {
   it('sends the whole list with store names and the bearer token', async () => {
     const store = (await call('POST', '/api/stores', { name: 'Trader Joe’s' })).json as { id: string };
     await call('POST', '/api/shopping', { name: 'lemons', quantity: 3, unit: '', category: '', store: store.id });
-    const milk = (await call('POST', '/api/shopping', { name: 'milk', quantity: null, unit: '', category: '', store: '' })).json as {
-      item: { id: string };
-    };
+    await call('POST', '/api/shopping', { name: 'milk', quantity: null, unit: '', category: '', store: '' });
     await call('PUT', '/api/settings/costs', { url: 'https://www.example.com/', auto: false, token: 'secret-token-1234567' });
 
     const r = await call('POST', '/api/costs/send');
@@ -80,7 +78,7 @@ describe('send to Costs', () => {
     const body = JSON.parse(String(sent[0].init.body)) as { items: Array<Record<string, unknown>> };
     expect(body.items).toEqual([
       expect.objectContaining({ name: 'lemons', quantity: 3, store: 'Trader Joe’s', checked: false }),
-      expect.objectContaining({ id: milk.item?.id ?? expect.any(String), name: 'milk', quantity: null, store: '', checked: false }),
+      expect.objectContaining({ id: expect.any(String), name: 'milk', quantity: null, store: '', checked: false }),
     ]);
     const status = await call('GET', '/api/settings/costs');
     expect(status.json.last).toMatchObject({ ok: true, count: 2 });
@@ -128,5 +126,97 @@ describe('costsSiteUrl', () => {
     expect(() => costsSiteUrl('http://www.jascui.com')).toThrow(/https/);
     expect(() => costsSiteUrl('https://user:pw@www.jascui.com')).toThrow(/username/);
     expect(() => costsSiteUrl('not a url')).toThrow();
+  });
+});
+
+describe('ticks from Costs', () => {
+  type Item = { id: string; name: string; checked: boolean };
+  let remote: Array<{ id: string; checked: boolean }>;
+
+  beforeEach(async () => {
+    remote = [];
+    reply = () => Response.json({ sentAt: '2026-11-08T00:00:00Z', items: remote });
+    await call('PUT', '/api/settings/costs', { url: 'https://www.example.com', auto: false, token: 'secret-token-1234567' });
+  });
+
+  const add = async (name: string): Promise<Item> => {
+    await call('POST', '/api/shopping', { name, quantity: null, unit: '', category: '', store: '' });
+    const items = (await call('GET', '/api/shopping')).json as unknown as Item[];
+    return items.find((i) => i.name === name)!;
+  };
+  const shopping = async () => (await call('GET', '/api/shopping')).json as unknown as Item[];
+  const pantry = async () => (await call('GET', '/api/pantry')).json as unknown as Array<{ id: string; name: string; usedUp: boolean }>;
+
+  it('checks off what was ticked on Costs and adds it to the pantry', async () => {
+    const lemons = await add('lemons');
+    const milk = await add('milk');
+    remote = [
+      { id: lemons.id, checked: true },
+      { id: milk.id, checked: false },
+      { id: 'gone-from-the-list', checked: true },
+    ];
+    const r = await call('POST', '/api/costs/pull', { toPantry: true });
+    expect(r.status).toBe(200);
+    expect(r.json).toEqual({ checked: ['lemons'], unchecked: [] });
+    expect(sent.at(-1)?.init.method).toBe('GET');
+    expect((sent.at(-1)?.init.headers as Record<string, string>).authorization).toBe('Bearer secret-token-1234567');
+    const items = await shopping();
+    expect(items.find((i) => i.id === lemons.id)?.checked).toBe(true);
+    expect(items.find((i) => i.id === milk.id)?.checked).toBe(false);
+    expect((await pantry()).map((p) => p.name)).toContain('lemons');
+    // Pulling again changes nothing.
+    expect((await call('POST', '/api/costs/pull', { toPantry: true })).json).toEqual({ checked: [], unchecked: [] });
+    expect((await pantry()).filter((p) => p.name === 'lemons')).toHaveLength(1);
+  });
+
+  it('unticking on Costs undoes only what a tick from Costs did', async () => {
+    const lemons = await add('lemons');
+    const eggs = await add('eggs');
+    // Eggs were checked off at home, by hand.
+    await call('PUT', `/api/shopping/${eggs.id}`, { name: 'eggs', quantity: null, unit: '', category: '', checked: true, store: '' });
+    remote = [{ id: lemons.id, checked: true }];
+    await call('POST', '/api/costs/pull', { toPantry: true });
+
+    remote = [
+      { id: lemons.id, checked: false },
+      { id: eggs.id, checked: false },
+    ];
+    const r = await call('POST', '/api/costs/pull', { toPantry: true });
+    expect(r.json).toEqual({ checked: [], unchecked: ['lemons'] });
+    const items = await shopping();
+    expect(items.find((i) => i.id === lemons.id)?.checked).toBe(false);
+    expect(items.find((i) => i.id === eggs.id)?.checked).toBe(true);
+    expect((await pantry()).map((p) => p.name)).not.toContain('lemons');
+  });
+
+  it('restocks a finished pantry item, and puts it back on Finished when unticked', async () => {
+    const created = (await call('POST', '/api/pantry', { name: 'Milk', quantity: null, unit: '', category: 'Dairy', expiresOn: null, notes: '', usedUp: true }))
+      .json as { id: string };
+    const milk = await add('milk');
+    remote = [{ id: milk.id, checked: true }];
+    await call('POST', '/api/costs/pull', { toPantry: true });
+    expect((await pantry()).find((p) => p.id === created.id)?.usedUp).toBe(false);
+    remote = [{ id: milk.id, checked: false }];
+    await call('POST', '/api/costs/pull', { toPantry: true });
+    expect((await pantry()).find((p) => p.id === created.id)?.usedUp).toBe(true);
+  });
+
+  it('leaves the pantry alone when that option is off', async () => {
+    const lemons = await add('lemons');
+    remote = [{ id: lemons.id, checked: true }];
+    await call('POST', '/api/costs/pull', { toPantry: false });
+    expect((await shopping())[0].checked).toBe(true);
+    expect(await pantry()).toHaveLength(0);
+  });
+
+  it('reports being offline without changing anything', async () => {
+    await add('lemons');
+    reply = () => {
+      throw new TypeError('fetch failed');
+    };
+    const r = await call('POST', '/api/costs/pull', { toPantry: true });
+    expect(r.status).toBe(502);
+    expect(r.json.code).toBe('costs-offline');
+    expect((await shopping())[0].checked).toBe(false);
   });
 });

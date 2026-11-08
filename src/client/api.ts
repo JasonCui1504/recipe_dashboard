@@ -112,6 +112,7 @@ export const api = {
     /** Leave `token` out to keep the saved one. */
     saveSettings: (s: { url: string; auto: boolean; token?: string }) => request<CostsSyncStatus>('PUT', '/api/settings/costs', s),
     send: () => request<{ sentAt: string; count: number }>('POST', '/api/costs/send'),
+    pull: (toPantry: boolean) => request<{ checked: string[]; unchecked: string[] }>('POST', '/api/costs/pull', { toPantry }),
   },
   ai: {
     settings: () => request<AiSettings>('GET', '/api/settings/ai'),

@@ -21,7 +21,7 @@ import {
   suggestSubstitutions,
   type FetchLike,
 } from './ai';
-import { costsPayload, sendToCosts } from './costs';
+import { costsPayload, fetchCostsTicks, sendToCosts } from './costs';
 import { openDatabase } from './db';
 import { AppError } from './errors';
 import { MAX_IMAGE_BYTES, resolveImage, saveImage } from './images';
@@ -184,6 +184,13 @@ export function createApp(options: AppOptions): App {
     return costsStatus();
   });
   route('POST', '/api/costs/send', () => sendCosts());
+  // Ticks made on the Costs page → check those items off here too.
+  route('POST', '/api/costs/pull', async ({ body }) => {
+    const b = z.object({ toPantry: z.boolean().default(true) }).safeParse(await body());
+    if (!b.success) throw new AppError(400, '"toPantry" must be true or false.');
+    const ticks = await fetchCostsTicks(store.getCostsSync(), { fetch: options.costsFetch });
+    return store.applyCostsTicks(ticks, b.data.toPantry);
+  });
 
   route('GET', '/api/health', () => ({ ok: true }));
 
