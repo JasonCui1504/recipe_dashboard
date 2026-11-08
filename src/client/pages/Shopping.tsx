@@ -77,6 +77,7 @@ export function Shopping() {
   const [emailing, setEmailing] = useState(false);
   const [toPantry, setToPantry] = useBasketToPantry();
   const pantryEffects = useRef(new Map<string, PantryEffect>());
+  const [sending, setSending] = useState(false);
 
   const knownStore = (id: string) => stores.some((s) => s.id === id);
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? 'Any store';
@@ -180,6 +181,23 @@ export function Shopping() {
   const moveTo = async (item: ShoppingItem, store: string) => {
     if (await save(item, { store })) {
       toast(store ? `${item.name} → ${storeName(store)}. Next time it goes there automatically.` : `${item.name} can be bought anywhere.`, 'info');
+    }
+  };
+
+  // One way: the whole list goes to the Costs page on the website, to tick off in the store.
+  const sendToCosts = async () => {
+    setSending(true);
+    try {
+      const { count } = await api.costs.send();
+      toast(`Sent ${count} item${count === 1 ? '' : 's'} to Costs.`, 'success');
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'costs-not-configured') {
+        toast('Add your Costs sync token in Settings first (Send to Costs).', 'error');
+      } else {
+        toast(errorMessage(err), 'error');
+      }
+    } finally {
+      setSending(false);
     }
   };
 
@@ -330,6 +348,15 @@ export function Shopping() {
         </button>
         <button type="button" className="btn btn-ghost no-print" onClick={() => window.print()}>
           Print
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost no-print"
+          onClick={() => void sendToCosts()}
+          disabled={sending || items.length === 0}
+          title="Send this list to the Costs page on your website, to tick off on your phone"
+        >
+          {sending ? 'Sending…' : 'Send to Costs'}
         </button>
         <Link className="btn btn-primary no-print" to="/shopping/plan">
           <IconCalendar size={18} /> Plan groceries for a week

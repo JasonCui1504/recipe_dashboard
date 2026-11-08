@@ -23,6 +23,9 @@ import {
   shoppingItemSchema,
   storeSchema,
   type AiSettings,
+  costsSyncSchema,
+  DEFAULT_COSTS_SYNC,
+  type CostsSync,
   type Meal,
   type MealInput,
   type PantryInput,
@@ -467,6 +470,22 @@ export class Store {
     const settings = parseOrThrow(aiSettingsSchema, raw, 'AI settings');
     this.setSetting('ai', JSON.stringify(settings));
     return settings;
+  }
+
+  // ---------- sending the list to the Costs page ----------
+
+  getCostsSync(): CostsSync {
+    const raw = this.getSetting('costsSync');
+    const parsed = raw ? costsSyncSchema.safeParse(JSON.parse(raw)) : null;
+    return parsed?.success ? parsed.data : { ...DEFAULT_COSTS_SYNC };
+  }
+
+  /** Saves the settings. A missing `token` keeps the saved one; '' removes it. */
+  setCostsSync(raw: unknown): CostsSync {
+    const input = parseOrThrow(costsSyncSchema.partial({ token: true }), raw, 'Costs settings');
+    const next = { ...input, token: input.token ?? this.getCostsSync().token };
+    this.setSetting('costsSync', JSON.stringify(next));
+    return next;
   }
 
   // ---------- daily message ----------

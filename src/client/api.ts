@@ -1,5 +1,5 @@
 import type { ConflictStrategy, ImportPreview, ImportResult } from '../shared/backup';
-import type { AiSettings, Meal, PantryInput, PantryItem, Recipe, RecipeInput, ShoppingInput, ShoppingItem, Store } from '../shared/schema';
+import type { AiSettings, CostsSyncStatus, Meal, PantryInput, PantryItem, Recipe, RecipeInput, ShoppingInput, ShoppingItem, Store } from '../shared/schema';
 
 /** Thin client for the local API. Every request goes to this same origin. */
 
@@ -106,6 +106,12 @@ export const api = {
       return data.imagePath;
     },
     url: (imagePath: string) => `/api/images/${imagePath}`,
+  },
+  costs: {
+    settings: () => request<CostsSyncStatus>('GET', '/api/settings/costs'),
+    /** Leave `token` out to keep the saved one. */
+    saveSettings: (s: { url: string; auto: boolean; token?: string }) => request<CostsSyncStatus>('PUT', '/api/settings/costs', s),
+    send: () => request<{ sentAt: string; count: number }>('POST', '/api/costs/send'),
   },
   ai: {
     settings: () => request<AiSettings>('GET', '/api/settings/ai'),

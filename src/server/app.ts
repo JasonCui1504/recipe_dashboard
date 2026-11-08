@@ -5,7 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { backupSchema, checkBackupHeader, CONFLICT_STRATEGIES, type Backup } from '../shared/backup';
 import { addDays, isValidIsoDate, toIsoDate } from '../shared/dates';
-import { AI_DRAFT_REQUEST_MAX, describeZodError } from '../shared/schema';
+import { AI_DRAFT_REQUEST_MAX, describeZodError, type CostsSyncStatus } from '../shared/schema';
 import {
   AiError,
   askAssistant,
@@ -21,6 +21,7 @@ import {
   suggestSubstitutions,
   type FetchLike,
 } from './ai';
+import { costsPayload, sendToCosts } from './costs';
 import { openDatabase } from './db';
 import { AppError } from './errors';
 import { MAX_IMAGE_BYTES, resolveImage, saveImage } from './images';
@@ -34,6 +35,10 @@ export interface AppOptions {
   /** Injected fetch for the Ollama client (tests use a mock). */
   aiFetch?: FetchLike;
   aiTimeoutMs?: number;
+  /** Injected fetch for sending the list to the Costs page (tests use a mock). */
+  costsFetch?: FetchLike;
+  /** How long after a change automatic sending waits (default 3 s). */
+  costsAutoDelayMs?: number;
 }
 
 export interface App {
@@ -137,6 +142,48 @@ export function createApp(options: AppOptions): App {
     if (!isValidIsoDate(v)) throw new AppError(400, `"${key}" must be a YYYY-MM-DD date.`);
     return v;
   };
+
+  // Sending the shopping list to the Costs page on the website.
+  let lastCostsSend: CostsSyncStatus['last'] = null;
+  let costsTimer: ReturnType<typeof setTimeout> | null = null;
+  const costsStatus = (): CostsSyncStatus => {
+    const s = store.getCostsSync();
+    return { url: s.url, auto: s.auto, tokenSet: s.token !== '', last: lastCostsSend };
+  };
+  const sendCosts = async () => {
+    const at = new Date().toISOString();
+    try {
+      const { count } = await sendToCosts(store.getCostsSync(), costsPayload(store.listShopping(), store.listStores()), {
+        fetch: options.costsFetch,
+      });
+      lastCostsSend = { at, ok: true, count, error: '' };
+      return { sentAt: at, count };
+    } catch (err) {
+      lastCostsSend = { at, ok: false, count: 0, error: err instanceof Error ? err.message : 'Sending failed.' };
+      throw err;
+    }
+  };
+  /** With automatic sending on, send a few seconds after the last change. */
+  const scheduleCostsSend = () => {
+    const s = store.getCostsSync();
+    if (!s.auto || !s.token) return;
+    if (costsTimer) clearTimeout(costsTimer);
+    costsTimer = setTimeout(() => {
+      costsTimer = null;
+      sendCosts().catch(() => {}); // the error is kept in lastCostsSend for Settings
+    }, options.costsAutoDelayMs ?? 3000);
+    costsTimer.unref?.();
+  };
+  const CHANGES_LIST = /^\/api\/(shopping|stores|backup\/import)(\/|$)/;
+
+  route('GET', '/api/settings/costs', () => costsStatus());
+  route('PUT', '/api/settings/costs', async ({ body }) => {
+    const before = store.getCostsSync();
+    const after = store.setCostsSync(await body());
+    if (after.auto && (!before.auto || after.token !== before.token || after.url !== before.url)) scheduleCostsSend();
+    return costsStatus();
+  });
+  route('POST', '/api/costs/send', () => sendCosts());
 
   route('GET', '/api/health', () => ({ ok: true }));
 
@@ -439,6 +486,7 @@ export function createApp(options: AppOptions): App {
         }
       };
       const result = await hit.r.handler({ req, res, params, query: url.searchParams, body });
+      if (method !== 'GET' && CHANGES_LIST.test(url.pathname)) scheduleCostsSend();
       if (!res.headersSent) sendJson(res, 200, result ?? { ok: true });
     } catch (err) {
       if (res.headersSent) {
@@ -463,6 +511,7 @@ export function createApp(options: AppOptions): App {
     db,
     close: () =>
       new Promise<void>((done) => {
+        if (costsTimer) clearTimeout(costsTimer);
         server.close(() => {
           db.close();
           done();
